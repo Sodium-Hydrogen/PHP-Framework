@@ -11,6 +11,10 @@ function get_url(){
     $relLink = substr($actualLink, $pos + strlen("/index.php"));
     if($relLink !== ""){
       $relLink = substr($relLink, 1);
+      $pos = strpos($relLink, "/");
+      if($pos == strlen($relLink)-1){
+        $relLink = substr($relLink, 0, $pos);
+      }
     }
     if($relLink == ""){
       $relLink = "home";

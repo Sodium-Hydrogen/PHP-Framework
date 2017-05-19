@@ -9,5 +9,6 @@ Created by Mike Julander
 and Weston Shakespear
 */
 
+require_once("resources/phpScripts/load.php");
 
 ?>

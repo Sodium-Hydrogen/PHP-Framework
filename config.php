@@ -55,12 +55,11 @@ if($actualLink == $_SERVER[HTTP_HOST] . "/config.php" || $actualLink == $_SERVER
       $outPut = mysqli_query($database, $command);
       $results = $outPut->fetch_assoc();
       if($results[username] == ""){
-        echo "<br>Empty<br>";
         if($_SERVER["REQUEST_METHOD"] == "POST"){
-        if(!empty($_POST["username"]) && !empty($_POST["password"])){
-        $username = $_POST["username"];
-        $password = $_POST["password"];
-        $command = "INSERT INTO accounts (username, password, privilages)
+          if(!empty($_POST["username"]) && !empty($_POST["password"])){
+            $username = $_POST["username"];
+            $password = $_POST["password"];
+            $command = "INSERT INTO accounts (username, password, privilages)
             VALUES ('" . $username . "', '" . $password . "', 'ADMIN')";
 
             if(mysqli_query($database, $command)){
@@ -72,11 +71,11 @@ if($actualLink == $_SERVER[HTTP_HOST] . "/config.php" || $actualLink == $_SERVER
         }
         ?>
         <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
-        User Name:<br><input type="text" name="username"><br>
-        Password:<br><input type="text" name="password"><br>
-        <input type="submit">
-      </form>
-      <?php
+          User Name:<br><input type="text" name="username"><br>
+          Password:<br><input type="text" name="password"><br>
+          <input type="submit">
+        </form>
+        <?php
       }
     }
     mysqli_close($database);
@@ -84,6 +83,5 @@ if($actualLink == $_SERVER[HTTP_HOST] . "/config.php" || $actualLink == $_SERVER
     header( 'Location: index.php');
   }
 }
-
 
 ?>

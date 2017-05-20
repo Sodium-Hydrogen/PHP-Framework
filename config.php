@@ -17,7 +17,7 @@ $sql_password = "password";
 // After initial setup it is recommended to turn this option off.
 $setup = true;
 // Enables verbose logging and php error reporting
-$debug_mode = true; 
+$debug_mode = false; 
 
 if ($debug_mode) {
   //setting error reporting

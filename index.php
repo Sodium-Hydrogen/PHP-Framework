@@ -11,7 +11,7 @@ and Weston Shakespear
 
 require_once("resources/phpScripts/load.php");
 
-if($debug_mode){
+if($setup){
   echo "<h1>Comming Soon</h1>";
 }else{
   /*

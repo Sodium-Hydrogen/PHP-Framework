@@ -12,23 +12,29 @@ $sql_database = "serverDb";
 $sql_user_name = "username";
 // This is where the mysql password goes
 $sql_password = "password"; 
-// while this is set to true the program will display a comming soon page. 
+// while this is set to true the program will display a coming soon page. 
 // it is also needed to be on to set up mysql for the first time.
 // After initial setup it is recommended to turn this option off.
-$debug_mode = true;  
+$setup = true;
+// Enables verbose logging and php error reporting
+$debug_mode = true; 
 
-
+if ($debug_mode) {
+  //setting error reporting
+  error_reporting(E_ALL);
+  ini_set('display_errors', 1);
+}
 
 // This code will only run if you are currently on config.php.
 // Additionaly it will only give you access to create a username and password
 // for your website if debugging mode is on.
-// Once you turn debugging mode off this page will simply redirect to a 404 error.
+// Once you turn setup mode off this page will simply redirect to a 404 error.
 // The user it creates will be created with full admin privilages.
 
 $actualLink = "http://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
 $actualLink = substr($actualLink, strpos($actualLink, "//") +  2);
 if($actualLink == $_SERVER[HTTP_HOST] . "/config.php" || $actualLink == $_SERVER[HTTP_HOST] . "/config.php/"){
-  if($debug_mode){
+  if($setup){
     $database = new mysqli("localhost", $sql_user_name, $sql_password, $sql_database);
 
     if ($database->connect_errno) {

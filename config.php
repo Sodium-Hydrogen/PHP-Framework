@@ -52,7 +52,9 @@ if($actualLink == $_SERVER[HTTP_HOST] . "/config.php" || $actualLink == $_SERVER
           question VARCHAR(40)
         )";
         if(mysqli_query($database, $command)){
-          echo "<br>table creation command successful<br>";
+          if($debug_mode){
+            echo "<br>table creation command successful<br>";
+          }
         }
       }
 
@@ -69,8 +71,8 @@ if($actualLink == $_SERVER[HTTP_HOST] . "/config.php" || $actualLink == $_SERVER
             VALUES ('" . $username . "', '" . $password . "', 'ADMIN')";
 
             if(mysqli_query($database, $command)){
-              echo "Users successfully writen <br>";
-            }else{
+              echo "User successfully writen <br>";
+            }else if($debug_mode){
               echo "error saving user " . mysqli_error($database);
             }
           }

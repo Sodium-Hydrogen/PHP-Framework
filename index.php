@@ -11,4 +11,12 @@ and Weston Shakespear
 
 require_once("resources/phpScripts/load.php");
 
+if($debug_mode){
+  echo "<h1>Comming Soon</h1>";
+}else{
+  /*
+  This is where all the code will go to display the pages
+  */
+}
+
 ?>

@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css?family=Roboto+Condensed');
+body{
+  font-family: "Roboto Condensed", sans-serif;
+  background-color: #333;
+  color: #CCC;
+}
+.warning{
+  background-color: red;
+  padding: 5px 20px;
+  width: 300px;
+  margin: auto;
+  color: white;
+  text-align: center;
+}
+.loginBox{
+  position: relative;
+  background-color: #444;
+  padding: 50px;
+  width: 300px;
+  margin: auto;
+  border-radius: 10px;
+  top: 90px;
+  z-index: 0;
+}
+.loginBox a,
+.loginBox a:visited{
+  color: #CCC;
+}
+form{
+  color: #CCC;
+  z-index: 0;
+}
+form a{
+  color:inherit;
+  z-index: 0;
+}
+form input{
+  margin: 10 0;
+  border-radius: 5px;
+  z-index: 0;
+}
+form input[type=text],
+form input[type=password]{
+  width: 300px;
+  padding: 5px;
+}
+form input[type=submit]{
+  padding: 5px 20px;
+}
+.users{
+  position: relative;
+  background-color: #444;
+  padding: 50px;
+  margin: auto;
+  border-radius: 10px;
+  top: 90px;
+  z-index: 0;
+  width: 50%;
+}
+.users .row{
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 5px 0px;
+}
+.users .row .headCell{
+  font-weight: bold;
+}
+@media only screen and (max-width: 750px) {
+  .users{
+    width: 70%;
+  }
+}
+@media only screen and (max-width: 500px){
+  form input[type=text],
+  form input[type=password]{
+    width: 200px;
+  }
+  .users .row{
+    flex-direction: column;
+    border-bottom: 1px solid #ccc;
+  }
+  .loginBox{
+    top: 50px;
+    width: 200px;
+  }
+    .users{
+      top: 60px;
+  }
+}

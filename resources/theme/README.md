@@ -1,10 +1,12 @@
 ## This is where the theme goes. ##
 ## One can be found [here][theme]. ##
 
-### The reqired files are as follows: ###
+### The only reqired file is as follows: ###
+#### /page/index.php ####
+### However to have custom error pages theses files are sugested: ###
 #### /page/403.php ####
 #### /page/404.php ####
-#### /page/index.php ####
+
 
 
 

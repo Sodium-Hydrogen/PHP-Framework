@@ -10,13 +10,31 @@ and Weston Shakespear
 */
 
 require_once("resources/phpScripts/load.php");
-
-if($setup){
-  echo "<h1>Comming Soon</h1>";
+$actual_link = strtolower(get_url("index.php"));
+session_start();
+if($_GET){
+  if(null !== ($error = $_GET['error'])){
+    require("resources/theme/page/$error.php");
+  }
 }else{
-  /*
-  This is where all the code will go to display the pages
-  */
+  if($setup && null == $_SESSION['user']){
+    echo "<h1>Coming Soon</h1>";
+    load_page_head("");
+  }else{
+
+    $subPage = $_SESSION['page'];
+    $success = false;
+    for($i = 0; $i < count($subPage); $i++){
+      if($actual_link == $subPage[$i]){
+          $success = true;
+      }
+    }
+    if($success){
+      require("resources/theme/page/index.php");
+    }else{
+      require("resources/theme/page/404.php");
+    }
+  }
 }
 
 ?>

@@ -11,8 +11,12 @@ This file contains the content for all pages.<br>
 It also contains the optional subtitle to be displayed in the themes header.
 ### footer ###
 This is where the footer sections are defined.<br>
-By adding the tag <em> social </em> it will attempt to find a matching font awesome logo for the social media link
+By adding the tag <em> social </em> it will attempt to find a matching font awesome logo for the social media link.
 ### theme/ ###
-This directory is where you would put the theme for the site
+This directory is where you would put the theme for the site. <br>
+Some can be found [here][theme].
 ### login.php ###
-By requesting this page on a browser it will generate built in login page
+By requesting this page on a browser it will generate built in login page.
+
+
+[themes]: https://github.com/NaH012/framework-themes/

@@ -2,10 +2,10 @@
 ## One can be found [here][theme]. ##
 
 ### The only reqired file is as follows: ###
-#### /page/index.php ####
+#### page/index.php ####
 ### However to have custom error pages theses files are sugested: ###
-#### /page/403.php ####
-#### /page/404.php ####
+#### page/403.php ####
+#### page/404.php ####
 
 
 

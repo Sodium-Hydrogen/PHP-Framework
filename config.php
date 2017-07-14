@@ -11,7 +11,7 @@ This is what you will use to login to your website's login page.
 $pageName = "Sample";
 // These are the pages that will be generated and what their names will be
 // It is a good idea to leave home in the list
-$subPage = array("home", "page1", "page 2");
+$subPage = array("home", "page1");
 // This is the name of the database that the website will be using.
 $sql_database = "serverDb";
 // This is the mysql username

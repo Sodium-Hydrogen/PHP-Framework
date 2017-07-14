@@ -14,3 +14,5 @@ This is where the footer sections are defined.<br>
 By adding the tag <em> social </em> it will attempt to find a matching font awesome logo for the social media link
 ### theme/ ###
 This directory is where you would put the theme for the site
+### login.php ###
+By requesting this page on a browser it will generate built in login page

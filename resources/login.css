@@ -11,6 +11,16 @@ body{
   margin: auto;
   color: white;
   text-align: center;
+  margin-top: 60px;
+}
+.success{
+  background-color: green;
+  padding: 5px 20px;
+  width: 300px;
+  margin: auto;
+  color: white;
+  text-align: center;
+  margin-top: 60px;
 }
 .loginBox{
   position: relative;
@@ -34,7 +44,8 @@ form a{
   color:inherit;
   z-index: 0;
 }
-form input{
+form input,
+.users button{
   margin: 10 0;
   border-radius: 5px;
   z-index: 0;
@@ -57,14 +68,41 @@ form input[type=submit]{
   z-index: 0;
   width: 50%;
 }
-.users .row{
+.users .row,
+.users .headRow{
   display: flex;
   flex-direction: row;
-  justify-content: space-between;
+  width: 100%;
   padding: 5px 0px;
+  max-height: 22px;
 }
 .users .row .headCell{
   font-weight: bold;
+}
+.users form {
+  margin-bottom: 0;
+}
+.users input[type="submit"],
+.users button{
+  margin: 0;
+  padding: 1px 6px;
+} 
+.users .row .colOne{
+  min-width: 70px;
+  width: 100%;
+  height: 80px;
+  padding-right: 15px;
+}
+.users .row .colTwo{
+  min-width: 80px;
+  padding-right: 5px;
+}
+.users .row .colThree{
+  min-width: 120px;
+  padding-right: 5px;
+}
+.users .row .colFour{
+  min-width: 90px;
 }
 @media only screen and (max-width: 750px) {
   .users{
@@ -78,7 +116,29 @@ form input[type=submit]{
   }
   .users .row{
     flex-direction: column;
+    flex-wrap:  wrap;
     border-bottom: 1px solid #ccc;
+    max-height: none;
+    height: 70px;
+  }
+  .users .specialRow{
+    max-height: 22px;
+  }
+  .users .row .colOne,
+  .users .row .colTwo,
+  .users .row .colThree,
+  .users .row .colFour{
+    width: auto;
+    padding: 0;
+  }
+  .users .row .colOne{
+    padding-top: 22px;
+  }
+  .users .specialRow .colOne{
+    padding-top: 0;
+  }
+  .spacer{
+    display: none;
   }
   .loginBox{
     top: 50px;

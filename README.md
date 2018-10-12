@@ -8,7 +8,10 @@ When $setup is true the main page will say comming soon and this file can be run
 It also has things like the sites title and list of pages in it
 ### page ###
 This file contains the content for all pages.<br>
-It also contains the optional subtitle to be displayed in the themes header.
+It also contains the optional subtitle to be displayed in the themes header.<br>
+Additionally it now supports posts and will display them in a table on the main page and 
+posts will be displayed as two column layouts with the header and image on the left side and
+any text on the right side.
 ### footer ###
 This is where the footer sections are defined.<br>
 By adding the tag <em> social </em> it will attempt to find a matching font awesome logo for the social media link.

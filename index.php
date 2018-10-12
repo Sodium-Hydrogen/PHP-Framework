@@ -11,7 +11,6 @@ and Weston Shakespear
 
 require_once("resources/phpScripts/load.php");
 $actual_link = strtolower(get_url("index.php"));
-session_start();
 if($_GET){
   if(null !== ($error = $_GET['error'])){
     require("resources/theme/page/$error.php");
@@ -25,8 +24,12 @@ if($_GET){
     $subPage = $_SESSION['page'];
     $success = false;
     for($i = 0; $i < count($subPage); $i++){
-      if($actual_link == $subPage[$i]){
-          $success = true;
+      if(substr($actual_link, 0, strpos($actual_link, '/', 0)) == $subPage[$i]){
+        if(is_valid_subpage($subPage[$i], substr($actual_link, (strpos($actual_link, '/', 0) + 1)))){
+	  $success = true;  
+        }
+      }else if($actual_link == $subPage[$i]){
+	$success = true;
       }
     }
     if($success){
@@ -36,5 +39,4 @@ if($_GET){
     }
   }
 }
-
 ?>

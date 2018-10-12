@@ -1,5 +1,15 @@
 # PHP-Framework #
 A PHP 7 framework developed by Michael Julander.
+## V.0.2 ##
+### Whats new ###
+* Redid the user management 
+  * Passwords are no longer stored in plain text, they are now salted and stored via Sha256.
+  * Users can now change their own passwords.
+  * Condenced all the admin areas down into a single user management page.
+* You can now have posts.
+* Added support for the login header linking to third party php scripts.
+* Minor UI tweaks here and there.
+* Made sure all user data is cleansed on sql injection.
 ## Important Files ##
 ### config.php ###
 Configuration file containing all of the setup for mysql access.<br>

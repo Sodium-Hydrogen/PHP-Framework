@@ -16,7 +16,12 @@ $login_header_link = array(
   //Use this to link other php scripts to the login headder in the framework
 	//array("Other Page", "/other.php")
 );
-
+// while this is set to true the program will display a coming soon page. 
+// it is also needed to be on to set up mysql for the first time.
+// After initial setup it is recommended to turn this option off.
+$setup = true;
+// Enables verbose logging and php error reporting
+$debug_mode = false; 
 // This is the name of the database that the website will be using.
 $sql_database = "serverDb";
 // This is the mysql username
@@ -28,12 +33,6 @@ $login_attemps = 4;
 // This is the time that an ip address will be denied the login page once the max amount of attemps has been met
 // It is also the time until failed logins are droped from the list
 $ban_hours = 48;
-// while this is set to true the program will display a coming soon page. 
-// it is also needed to be on to set up mysql for the first time.
-// After initial setup it is recommended to turn this option off.
-$setup = true;
-// Enables verbose logging and php error reporting
-$debug_mode = false; 
 
 if ($debug_mode) {
   //setting error reporting
@@ -117,7 +116,7 @@ if($actualLink == $_SERVER['HTTP_HOST'] . "/config.php" || $actualLink == $_SERV
 	          $password = trim($password);
 	          $salt = (string)bin2hex(openssl_random_pseudo_bytes(8));
 	          $password = hash('sha256', ($password . $salt)); 
-            $username = mysqli_real_escape_string($username);
+            $username = mysqli_real_escape_string($database, $username);
             $command = "INSERT INTO accounts (username, password, salt, privilages)
             VALUES ('" . $username . "', '" . $password . "', '" . $salt . "', 'ADMIN')";
 

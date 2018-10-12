@@ -1,5 +1,5 @@
 # PHP-Framework #
-A PHP 7 framework developed by Michael Julander and Weston Shakespear.
+A PHP 7 framework developed by Michael Julander.
 ## Important Files ##
 ### config.php ###
 Configuration file containing all of the setup for mysql access.<br>

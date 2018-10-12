@@ -3,9 +3,9 @@
 
 ### The only reqired file is as follows: ###
 #### page/index.php ####
+#### page/404.php ####
 ### However to have custom error pages theses files are sugested: ###
 #### page/403.php ####
-#### page/404.php ####
 
 
 

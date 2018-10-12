@@ -9,6 +9,9 @@ load_page_head($page_name);
 load_logged_header();
   Loads the necessary files for a header to appear when a user is logged in
   It also loads the header navigation header for when someone is logged in
+is_valid_subpage($mainpage, $subpage);
+  This checks to see if a subpage of a main page is valid and it will return a true, otherwise 
+  it will return a false
 load_content($page_name);
   This will read and display the content out of /content/page for the page specified
 load_footer();
@@ -23,8 +26,13 @@ viewUsers();
   It will return an array of all users for the website
 createAccount($username, $password, $privilages);
   Creates a new user with the specified username, password, and account privilages
-delete_account($username, $password, $privilages);
+delete_account($username, $privilages);
   Only deletes the account if all input fields match
+admin_change_password($username, $newPassword);
+  This function will change a user password with just their username and password
+change_password($username, $oldPassword, $newPassword);
+  This is used for users changing their own password it verifies that their password is valid
+  before changing it.
 save_fail();
   It saves the login fail and the time until it will be cleared from record
 check_attemps();

@@ -37,6 +37,7 @@ clear_fails();
 
 */
 
+
 function get_url($fileName){
   $actualLink = $_SERVER['REQUEST_URI'];
   $pos = strrpos($actualLink, $fileName);
@@ -59,7 +60,17 @@ function request_page_head(){
   $actual_link = get_url("index.php");
 
   if($actual_link !== "home"){
-    $second = $actual_link;
+    $subPage = $_SESSION['page'];
+    $success = false;
+    for($i = 0; $i < count($subPage); $i++){
+      if(substr($actual_link, 0, strpos($actual_link, '/', 0)) == $subPage[$i]){
+          $success = true;
+      }
+    }if($success){
+      $second = substr($actual_link, 0, strpos($actual_link, '/', 0));
+    }else{
+      $second = $actual_link;
+    }
   }else{
     $second = "";
   }
@@ -80,7 +91,6 @@ function load_page_head($second){
 }
 function load_logged_header(){
   if(!empty($_SESSION['user'])){
-    session_start();
     $user = $_SESSION['user'];
     ?>
     <script src="/resources/header.js"></script>
@@ -97,10 +107,21 @@ function load_logged_header(){
           <div class="dropdown-content" id="dropdownMenu">
             <a href="/">Home</a>
             <a href="/login.php/logout">Logout</a>
-            <?php  if($_SESSION['permisions'] == "ADMIN"){?>
-              <a href="/login.php/viewUser">View Users</a>
-              <a href="/login.php/newUser">Add User</a>
-              <a href="/login.php/delUser">Delete User</a>
+            <a href="/login.php/changePassword">Change Password</a>
+            <?php
+	    if(count($_SESSION['headerLink']) > 0){
+	      for($i = 0; $i < count($_SESSION['headerLink']); $i++){
+		if(strspn($_SESSION['headerLink'][$i][0], "*") == 1){
+		  if($_SESSION['permisions'] == "ADMIN"){
+	            echo "<a href=" . $_SESSION['headerLink'][$i][1] . ">" . substr($_SESSION['headerLink'][$i][0], 1) . "</a>";
+		  }
+		}else{
+	          echo "<a href=" . $_SESSION['headerLink'][$i][1] . ">" . $_SESSION['headerLink'][$i][0] . "</a>";
+		}
+	      }
+	    }
+	    if($_SESSION['permisions'] == "ADMIN"){?>
+              <a href="/login.php/manageUsers">Manage Users</a>
             <?php } ?>
           </div>
         </div>
@@ -109,21 +130,78 @@ function load_logged_header(){
     <?php
   }
 }
-function load_content($url){
+function is_valid_subpage($mainpage, $subpage){
   $file = file_get_contents("content/page");
+  $location = strpos($file, "## $mainpage ##") + strlen("## $mainpage ##");
+  $end = strpos($file, "## End $mainpage");
+  $content = substr($file, $location, $end-$location);
+  if(strpos($content, "#### Posts ####") > 0){
+    if(strpos($content, "#### $subpage ####") > 0){
+      return true;
+    }
+  }
+  return false;
+}
+function load_content($url){
+  $subPage = NULL;
+  $file = file_get_contents("content/page");
+  if(strpos($url, '/') > 0){
+    $subPage = substr($url, strpos($url, '/') + 1);
+    $url = substr($url, 0, strpos($url, '/'));
+  }
   $location = strpos($file, "## $url ##") + strlen("## $url ##");
   $end = strpos($file, "## End $url");
+
   $content = substr($file, $location, $end-$location);
   $location = strpos($content, "### Title ###");
   $end = strpos($content, "### Content ###");
   $dirLoc = strpos("### Direction ###") + strlen("### Direction ###") + 1;
   $direction = strtolower(trim(substr($content, $dirLoc, $location-$dirLoc)));
+  if($subPage != NULL)
+    $direction = 'row';
   $location += strlen("### Title ###");
   echo "<div class='content $direction'>";
   echo "<div class='title'><h3>";
-  echo substr($content, $location, $end-$location);
+  $pageContent = substr($content, $end+strlen("### Content ###"));
+  $pageDisplay = $pageContent;
+  if($subPage == NULL){
+    echo substr($content, $location, $end-$location);
+  }else{
+    $titleLocation = strpos($pageContent, "#### $subPage ####") + (10 + strlen($subPage));
+    $picLocation = strpos($pageContent, "#### Picture:", $titleLocation);
+    echo substr($pageContent, $titleLocation, $picLocation - $titleLocation) . "<br><br>
+    <img src='";
+    $picLocation += 14;
+    $endOfPic = strpos($pageContent, "####", $picLocation);
+    echo substr($pageContent, $picLocation, $endOfPic - $picLocation); 
+    echo "'/>";
+    $endOfPic += 5;
+    $pageDisplay = substr($pageContent, $endOfPic, strpos($pageContent, "#### $subPage end ####", $endOfPic) - $endOfPic);
+  }
   echo "</h3></div><div class='post'>";
-  echo substr($content, $end+strlen("### Content ###"));
+  if(strpos($pageContent, "#### Posts ####") > 0 && $subPage == NULL){
+    $startOfDisplay = strpos($pageContent, '#### Posts ####');
+    $pageDisplay = substr($pageContent, 0, $startOfDisplay);
+    $startOfDisplay += 16;
+    $pageContent = substr($pageContent, $startOfDisplay);
+    $pageDisplay .= "<br><br><table>";
+    while(strpos($pageContent, "end ####") > 0){
+      $postName = trim(substr($pageContent, 4, strpos($pageContent, " ####", 4) - 4));
+      $pageContent = substr($pageContent, strpos($pageContent, "\n") + 1);
+      $title = substr($pageContent, 0, strpos($pageContent, "\n"));
+      $pageContent = substr($pageContent, strpos($pageContent, "\n"));
+      $picture = substr($pageContent, strpos($pageContent, ":") + 1, strpos($pageContent, "####", 5) - strpos($pageContent, ":") - 1);
+      $pageContent = substr($pageContent, strpos($pageContent, "#### $postName end ####") + strlen("#### $postName end ####\n"));
+      $postName = "/index.php/$url/$postName";
+      $pageDisplay .= "<tr><td><a href='$postName'>$title</a></td>
+      <td><a href='$postName'><img src='$picture'></a></td></tr>";
+    }
+    $pageDisplay .= "</table>";
+    $pageContent = $pageDisplay;
+  }else if($subPage != NULL){
+    $pageContent = $pageDisplay; 
+  }
+  echo $pageContent;
   echo "</div>";
 }
 function load_footer(){
@@ -169,7 +247,6 @@ function breakup_file($file, $begin, $end){
   $second = strpos($file, $end);
   $content = substr($file, $first, $second - $first);
   return $content;
-  // echo $content;
 }
 function break_to_end($file, $begin){
   $first = strpos($file, $begin)+strlen($begin);
@@ -178,13 +255,21 @@ function break_to_end($file, $begin){
 
 }
 function login($userName, $passWord){
-  session_start();
   $sql_user_name = $_SESSION['dbUser'];
   $sql_password = $_SESSION['dbPass'];
   $sql_database = $_SESSION['db'];
   $userName = trim($userName);
   $passWord = trim($passWord);
+
   $database = new mysqli("localhost", $sql_user_name, $sql_password, $sql_database);
+
+  $userName = mysqli_real_escape_string($database, $userName);
+
+  $command = "SELECT * FROM accounts WHERE username ='$userName'";
+
+  $output = mysqli_query($database, $command);
+  $salt = $output->fetch_assoc()['salt'];
+  $passWord = hash('sha256', $passWord . $salt);
 
   $command = "SELECT * FROM accounts WHERE username = '$userName' and password ='$passWord'";
   $output = mysqli_query($database, $command);
@@ -199,7 +284,6 @@ function login($userName, $passWord){
   return $permisions;
 }
 function viewUsers(){
-  session_start();
   $sql_user_name = $_SESSION['dbUser'];
   $sql_password = $_SESSION['dbPass'];
   $sql_database = $_SESSION['db'];
@@ -211,22 +295,23 @@ function viewUsers(){
 
 }
 function createAccount($userName, $passWord, $privilages){
-  session_start();
   $sql_user_name = $_SESSION['dbUser'];
   $sql_password = $_SESSION['dbPass'];
   $sql_database = $_SESSION['db'];
   $database = new mysqli("localhost", $sql_user_name, $sql_password, $sql_database);
 
   $userName = mysqli_real_escape_string($database, $userName);
-  $passWord = mysqli_real_escape_string($database, $passWord);
+  
   $command = "SELECT username FROM accounts WHERE username = '$userName'";
 
   $check = mysqli_query($database, $command);
   $result = "none";
   if(empty(mysqli_fetch_assoc($check))){
+    $salt = (string)bin2hex(openssl_random_pseudo_bytes(8));
+    $passWord = hash('sha256', ($passWord . $salt));
 
-    $command = "INSERT INTO accounts (username, password, privilages)
-    VALUES ('$userName', '$passWord', '$privilages')";
+    $command = "INSERT INTO accounts (username, password, salt, privilages)
+    VALUES ('$userName', '$passWord', '$salt', '$privilages')";
     mysqli_query($database, $command);
     $result = "success";
   }
@@ -235,18 +320,68 @@ function createAccount($userName, $passWord, $privilages){
   return $result;
 
 }
-function delete_account($userName, $passWord, $privilages){
-  session_start();
+function admin_change_password($username, $newPassword){
+  $sql_user_name = $_SESSION['dbUser'];
+  $sql_password = $_SESSION['dbPass'];
+  $sql_database = $_SESSION['db'];
+  $database = new mysqli("localhost", $sql_user_name, $sql_password, $sql_database);
+
+  $username = mysqli_real_escape_string($database, $username);
+  $newPassword = mysqli_real_escape_string($database, $newPassword);
+
+  $command = "SELECT username FROM accounts WHERE username = '$username'";
+
+  $check = mysqli_query($database, $command);
+  $result = "none";
+
+  if(!empty(mysqli_fetch_assoc($check))){
+    $salt = (string)bin2hex(openssl_random_pseudo_bytes(8));
+    $newPassword = hash('sha256', ($newPassword . $salt));
+
+    $command = "UPDATE accounts
+    SET password='$newPassword', salt='$salt'
+    WHERE username='$username'";
+
+    mysqli_query($database, $command);
+    $result = "success";
+  }
+
+  mysqli_query($database, $command);
+  mysqli_close($database);
+
+}
+function change_password($username, $oldPassword, $newPassword){
+  $sql_user_name = $_SESSION['dbUser'];
+  $sql_password = $_SESSION['dbPass'];
+  $sql_database = $_SESSION['db'];
+  $database = new mysqli("localhost", $sql_user_name, $sql_password, $sql_database);
+  
+  $username = mysqli_real_escape_string($database, $username);
+
+  $command = "SELECT password, salt FROM accounts WHERE username = '$username'";
+
+  $output = mysqli_query($database, $command);
+  $result = 'none';
+  $data = $output->fetch_assoc();
+  $salt = $data['salt'];
+  $oldPassword = hash('sha256', ($oldPassword . $salt));
+  $password = $data['password'];
+  if($oldPassword == $password){
+    admin_change_password($username, $newPassword);
+    $result = "success";
+  }
+  mysqli_close($database);
+  return $result;
+}
+function delete_account($userName, $privilages){
   $sql_user_name = $_SESSION['dbUser'];
   $sql_password = $_SESSION['dbPass'];
   $sql_database = $_SESSION['db'];
   $database = new mysqli("localhost", $sql_user_name, $sql_password, $sql_database);
 
   $userName = mysqli_real_escape_string($database, $userName);
-  $passWord = mysqli_real_escape_string($database, $passWord);
 
-  $command = "DELETE FROM accounts WHERE username = '$userName' and
-  password = '$passWord' and privilages = '$privilages'";
+  $command = "DELETE FROM accounts WHERE username = '$userName' and privilages = '$privilages'";
 
   mysqli_query($database, $command);
   mysqli_close($database);
@@ -291,6 +426,7 @@ function save_fail(){
   mysqli_close($database);
 
 }
+
 function check_attemps(){
   $dbUser = $_SESSION['dbUser'];
   $dbPass = $_SESSION['dbPass'];

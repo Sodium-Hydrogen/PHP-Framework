@@ -23,6 +23,11 @@ column
 ### Title ###
 Test Page
 ### Content ###
+Example page with a post
+#### Post ####
+#### shakespeare ####
+Title of post
+#### Picture: /url/to/picture ####
 To be, or not to be, that is the question:<br>
 Whether 'tis nobler in the mind to suffer<br>
 The slings and arrows of outrageous fortune,<br>
@@ -33,6 +38,7 @@ the heart-ache, and the thousand natural shocks<br>
 that Flesh is heir to? 'Tis a consummation<br>
 devoutly to be wished. To die, to sleep,<br>
 To sleep, perchance to Dream; aye, there's the rub,<br>
+#### spakepeare end ####
 ## End page1 ##
 
 

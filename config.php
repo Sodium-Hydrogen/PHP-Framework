@@ -12,6 +12,11 @@ $pageName = "Sample";
 // These are the pages that will be generated and what their names will be
 // It is a good idea to leave home in the list
 $subPage = array("home", "page1");
+$login_header_link = array(
+  //Use this to link other php scripts to the login headder in the framework
+	//array("Other Page", "/other.php")
+);
+
 // This is the name of the database that the website will be using.
 $sql_database = "serverDb";
 // This is the mysql username
@@ -41,6 +46,7 @@ if ($debug_mode) {
 session_start();
 
 $_SESSION['page'] = $subPage;
+$_SESSION['headerLink'] = $login_header_link;
 $_SESSION['db'] = $sql_database;
 $_SESSION['dbUser'] = $sql_user_name;
 $_SESSION['dbPass'] = $sql_password;
@@ -81,9 +87,9 @@ if($actualLink == $_SERVER['HTTP_HOST'] . "/config.php" || $actualLink == $_SERV
       if(!mysqli_query($database, $command)){
         $command = "CREATE TABLE accounts (
           username VARCHAR(20) NOT NULL,
-          password VARCHAR(50) NOT NULL,
-          privilages VARCHAR(5) NOT NULL,
-          question VARCHAR(40)
+          password VARCHAR(64) NOT NULL,
+	        salt VARCHAR(16) NOT NULL,
+	        privilages VARCHAR(5) NOT NULL
         )";
         if(mysqli_query($database, $command)){
           $command = "CREATE TABLE blacklist (
@@ -108,12 +114,12 @@ if($actualLink == $_SERVER['HTTP_HOST'] . "/config.php" || $actualLink == $_SERV
             $username = $_POST["username"];
             $password = $_POST["password"];
             $username = trim($username);
-            $password = trim($password);
-            // $username = mysqli_real_escape_string($username);
-            // $password = mysqli_real_escape_string($password);
-            // createAccount($username, $password, "ADMIN");
-            $command = "INSERT INTO accounts (username, password, privilages)
-            VALUES ('" . $username . "', '" . $password . "', 'ADMIN')";
+	          $password = trim($password);
+	          $salt = (string)bin2hex(openssl_random_pseudo_bytes(8));
+	          $password = hash('sha256', ($password . $salt)); 
+            $username = mysqli_real_escape_string($username);
+            $command = "INSERT INTO accounts (username, password, salt, privilages)
+            VALUES ('" . $username . "', '" . $password . "', '" . $salt . "', 'ADMIN')";
 
             if(mysqli_query($database, $command)){
               echo "User successfully writen <br>";

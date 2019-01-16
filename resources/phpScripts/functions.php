@@ -62,7 +62,7 @@ function get_url($fileName){
       $relLink = "home";
     }
   }
-  return strtolower($relLink);
+  return strtolower(str_replace("%20", " ", $relLink));
 }
 function request_page_head(){
   $actual_link = get_url("index.php");
@@ -86,7 +86,7 @@ function request_page_head(){
 }
 function load_page_head($second){
   if(!empty($second)){
-    $second = " - " . ucfirst($second);
+    $second = " - " . ucwords($second);
   }
   ?>
   <head>

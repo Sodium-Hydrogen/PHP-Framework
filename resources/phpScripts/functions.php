@@ -174,6 +174,7 @@ function load_content($url){
   $pageDisplay = $pageContent;
   if($subPage == NULL){
     echo substr($content, $location, $end-$location);
+    $pageContent .= "</div>";
   }else{
     $titleLocation = strpos($pageContent, "#### $subPage ####") + (10 + strlen($subPage));
     $picLocation = strpos($pageContent, "#### Picture:", $titleLocation);
@@ -206,11 +207,12 @@ function load_content($url){
     }
     $pageDisplay .= "</table>";
     $pageContent = $pageDisplay;
+    $pageContent .= "</div>";
   }else if($subPage != NULL){
     $pageContent = $pageDisplay; 
+    $pageContent .= "<br><br><br><br><br><div class='navigate'><button onClick=\"window.location='/index.php/$url'\">Back</button></div></div>";
   }
   echo $pageContent;
-  echo "</div>";
 }
 function load_footer(){
   $file = file_get_contents("content/footer");

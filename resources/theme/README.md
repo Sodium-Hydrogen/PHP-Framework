@@ -3,10 +3,7 @@
 
 ### The only reqired file is as follows: ###
 #### page/index.php ####
-#### page/404.php ####
-#### page/403.php ####
-
-
+#### page/error.php ####
 
 
 

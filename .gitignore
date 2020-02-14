@@ -2,4 +2,5 @@ database_conf.php
 content
 *.swp
 resources/fontawesome
+resources/theme
 content

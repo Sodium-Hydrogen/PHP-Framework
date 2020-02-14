@@ -148,7 +148,7 @@ if("manageusers" == $page && $min_permis <= $_SESSION['permissions']){
 			}
 		}
 	}
-	echo "<div class='loginBox no-border'><div clas='logo'></div>";
+	echo "<div class='loginBox no-border'><div class='logo'></div>";
 	if ($_SESSION["permissions"]%2 == 0){
 		?>
 		<div class="row"><h2>Change Password</h2></div><hr>
@@ -206,7 +206,7 @@ if("manageusers" == $page && $min_permis <= $_SESSION['permissions']){
 		}
 	}
 	?>
-	<div class="loginBox no-border"><div clas="logo"></div>
+	<div class="loginBox no-border"><div class="logo"></div>
 	<?php
 	if(!empty($_SESSION['user'])){
 		print("You are already logged in.<br><br>");

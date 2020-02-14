@@ -1,42 +1,5 @@
 <?php
 /*
-get_url();
-	It will return the url following the php file name in the requested url
-request_page_head();
-	Loads the <head> for the website, it also calls load_page_head(); and get_url();
-load_page_head($page_name);
-	Loads some meta tags, links the fontawesome characters, and the title of the page
-load_logged_header();
-	Loads the necessary files for a header to appear when a user is logged in
-	It also loads the header navigation header for when someone is logged in
-load_content($page_name);
-	This will read and display the content out of /content/page for the page specified
-load_footer();
-	Loads the footer of the website using all the information in /content/footer
-breakup_file($input_string, $beginning_character_or_string, $ending_character_or_string);
-	Used by load_content() and load_footer() to split the string from reading the file
-break_to_end($input_string, $beginning_character_or_string);
-	Used by load_content() and load_footer() to split the string from reading the file
-login($Username, $Password);
-	It will return the privileges of the user if successful
-view_users();
-	It will return an array of all users for the website
-create_account($username, $password, $privileges);
-	Creates a new user with the specified username, password, and account privileges
-delete_account($username, $privileges);
-	Only deletes the account if all input fields match
-admin_change_password($username, $newPassword);
-	This function will change a user password with just their username and password
-change_password($username, $oldPassword, $newPassword);
-	This is used for users changing their own password it verifies that their password is valid
-	before changing it.
-save_fail();
-	It saves the login fail and the time until it will be cleared from record
-check_attemps();
-	This will return the number of fails the ip address has
-clear_fails();
-	Clears all login fails of the connecting ip address
-
 
 
 
@@ -474,7 +437,8 @@ function setup_database(){
 			('extended_timeout', '30', 'INT', 'The count in days of how long a user stays logged in.', true),
 			('alt_login_text', '', 'STRING', 'If this is set it will display a link to an alternate login script on the main login page.', true),
 			('alt_login_url', '', 'STRING', 'The url to an alternate login script.', true),
-			('force_sync', 'true', 'BOOL', 'Force all sessions to recheck every request if they need to refresh variables.', true)";
+			('force_sync', 'true', 'BOOL', 'Force all sessions to recheck every request if they need to refresh variables.', true),
+			('dark_mode', 'true', 'BOOL', 'Tells the framework and themes whether to use dark mode or not.', true)";
 		$res = $res && $database->query($command);
 
 		if($_SESSION['debug']){

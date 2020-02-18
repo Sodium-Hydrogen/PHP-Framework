@@ -2,108 +2,192 @@ Documentation on all the function provided by `/resources/phpScripts/functions.p
 
 ## Change Log ##
 v0.2 - v1
+#### Changed ####
+* `get_url($name_of_file)` -> `get_url()`
+* `request_page_head()` -> `request_page_head($second = NULL)`
+* `load_page_head($page_name)` -> `load_page_head($second = NULL)`
+* `viewUsers(` -> `view_users(`
+* `createAccount(` -> `create_account(`
+
 #### Removed ####
 * `load_content`
 * `load_footer`
 * `breakup_file`
 * `break_to_end`
+* `is_valid_subpage`
 
 #### Added ####
-* ``
-* ``
+* `queue_header`
+* `queue_body`
+* `fetch_content`
+* `get_all_footers`
+* `fetch_footer`
+* `setup_database`
+* `get_error_message`
+* `load_variables_from_database`
+* `secure_key`
+* `update_configs`
+* `delete_config`
+* `create_config`
+* `get_configs`
+* `clean_long_session_table`
+* `create_long_session`
+* `destroy_long_session`
+* `login_extended`
+* `logout_all_extended`
+* `get_all_extended`
+* `update_order`
+* `save_page`
+* `add_page`
+* `delete_page`
+* `add_post`
+* `save_post`
+* `delete_post`
+* `save_footer`
+* `add_footer`
+* `delete_footer`
+* `update_links`
+* `delete_link`
+* `add_link`
+* `force_refresh`
+* `refresh_session`
 
 ## Functions ##
 
-`function get_url(){`
+#### `get_url()` #####
+  It will return the appended url of the current script.
+  Ex.. `index.php` = `home`, `index.php/test/test` = `test/test`
 
-`function request_page_head($second = null){`
+#### `queue_header($string)` ####
+  Call this with any html `<head>` tags you want to send in the document before calling
+  `request_page_head` or `load_page_head`.
 
-`function queue_header($string){`
+#### `queue_body($string)` ####
+  Call this with any html elements you want in the `<body>` before the page head has
+  been sent to prevent data being sent out of order. If the head has already been sent
+  by calling `request_page_head` or `load_page_head` you do not need to call this.
 
-`function queue_body($string){`
+#### `load_page_head($second = NULL)` ####
+  Loads the `<head></head>` and opening `<body>` tags. If `$second` is provided it
+  will display that next to the title in the `<title>` tag, otherwise it will just
+  display the page title in the head tag.
 
-`function load_page_head($second = NULL){`
+#### `request_page_head($second = NULL)` ####
+  If no argument is passed it will try to figure out the target page and pass it
+  to load_page_head.
 
-`function load_logged_header(){`
+#### `load_logged_header()` ####
+  Loads the necessary files for a header to appear when a user is logged in
+  It also loads the header navigation header for when someone is logged in
 
-`function fetch_content($page, $post=null){`
+#### `fetch_content($page, $post = NULL)` ####
+  For pages if found this will return:```
+  Array(
+    [name] => "Name",
+    [title] => "Page Title",
+    [direction] => "row",
+    [position] => 0,
+    [content] => "Lorem ipsum",
+    [protected] => 1
+    [posts] => Array(
+      [0] => Array(
+        [name] => "postname",
+        [title] => "Post Title",
+        [picture] => "/url/to/picture.png"
+      ),
+      ...
+    )
+  )```
 
-`function get_all_footers($everything=true){`
+  If posts is provided and valid post:```
+  Array(
+    [name] => "post"
+    [title] => "Post Example"
+    [picture] => "/content/img.jpg"
+    [content] => "info"
+    [parent] => "Parent page name"
+    [position] => 0
+  )```
 
-`function fetch_footer($footer, $link=null){`
+  If it cannot find those values it returns `NULL`;
 
-`function login($username, $password){`
+#### `get_all_footers($everything = true)` ####
 
-`function view_users(){`
+#### `fetch_footer($footer, $link = NULL)` ####
 
-`function create_account($username, $password, $privileges){`
+#### `login($username, $password)` ####
+  It will return the privilages of the user if successful
+#### `view_users()` ####
+  It will return an array of all users for the website
+#### `create_account($username, $password, $privileges)` ####
+  Creates a new user with the specified username, password, and account privilages
+#### `admin_change_password($username, $newPassword)` ####
+  This function will change a user password with just their username and password
+#### `change_password($username, $oldPassword, $newPassword)` ####
+  This is used for users changing their own password it verifies that their password is valid
+  before changing it.
+#### `delete_account($username, $privileges)` ####
+  Only deletes the account if all input fields match
+#### `save_fail()` ####
+  It saves the login fail and the time until it will be cleared from record
+#### `check_attemps()` ####
+  This will return the number of fails the ip address has
+#### `clear_fails()` ####
+  Clears all login fails of the connecting ip address
+#### `setup_database()` ####
 
-`function admin_change_password($username, $newPassword){`
+#### `get_error_message($code)` ####
 
-`function change_password($username, $oldPassword, $newPassword){`
+#### `load_variables_from_database()` ####
 
-`function delete_account($username, $privileges){`
+#### `secure_key($length, $keyspace = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')` ####
 
-`function save_fail(){`
+#### `update_configs($config_dataset)` ####
 
-`function check_attemps(){`
+#### `delete_config($config_name)` ####
 
-`function clear_fails(){`
+#### `create_config($setting, $value, $type, $desc)` ####
 
-`function setup_database(){`
+#### `get_configs()` ####
 
-`function get_error_message($code){`
+#### `clean_long_session_table($database)` ####
 
-`function load_variables_from_database(){`
+#### `create_long_session()` ####
 
-`function secure_key($length, $keyspace = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'){`
+#### `destroy_long_session()` ####
 
-`function update_configs($config_dataset){`
+#### `login_extended()` ####
 
-`function delete_config($config_name){`
+#### `logout_all_extended($username, $privileges)` ####
 
-`function create_config($setting, $value, $type, $desc){`
+#### `get_all_extended($username = NULL, $privileges = NULL, $key = NULL)` ####
 
-`function get_configs(){`
+#### `update_order($new_order, $tablename = "pages", $parent = NULL)` ####
 
-`function clean_long_session_table($database){`
+#### `save_page($pageContent)` ####
 
-`function create_long_session(){`
+#### `add_page($newPage)` ####
 
-`function destroy_long_session(){`
+#### `delete_page($pageName)` ####
 
-`function login_extended(){`
+#### `add_post($post, $parent)` ####
 
-`function logout_all_extended($username, $privileges){`
+#### `save_post($post, $parent)` ####
 
-`function get_all_extended($username=null, $privileges=null, $key=null){`
+#### `delete_post($post, $parent)` ####
 
-`function update_order($new_order, $tablename="pages", $parent=null){`
+#### `save_footer($footer, $parent = NULL)` ####
 
-`function save_page($pageContent){`
+#### `add_footer($footer, $parent = NULL)` ####
 
-`function add_page($newPage){`
+#### `delete_footer($name, $parent = NULL)` ####
 
-`function delete_page($pageName){`
+#### `update_links($raw_links)` ####
 
-`function add_post($post, $parent){`
+#### `delete_link($target)` ####
 
-`function save_post($post, $parent){`
+#### `add_link($newLink)` ####
 
-`function delete_post($post, $parent){`
+#### `force_refresh($target = 'ALL')` ####
 
-`function save_footer($footer, $parent=null){`
-
-`function add_footer($footer, $parent=null){`
-
-`function delete_footer($name, $parent=null){`
-
-`function update_links($raw_links){`
-
-`function delete_link($target){`
-
-`function add_link($newLink){`
-
-`function force_refresh($target='ALL'){`
-
-`function refresh_session(){`
+#### `refresh_session()` ####

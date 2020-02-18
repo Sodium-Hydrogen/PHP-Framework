@@ -117,7 +117,9 @@ function fetch_content($page, $post=null){
 	}
 
 	$database->close();
-	return $res;
+	if(isset($res['name'])){
+		return $res;
+	}
 }
 function get_all_footers($everything=true){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);

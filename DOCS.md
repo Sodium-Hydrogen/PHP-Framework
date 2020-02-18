@@ -1,7 +1,7 @@
 Documentation on all the function provided by `/resources/phpScripts/functions.php`
 
 ## Change Log ##
-
+v0.2 - v1
 #### Removed ####
 * `load_content`
 * `load_footer`

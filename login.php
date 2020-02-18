@@ -147,7 +147,7 @@ if("manageusers" == $page && $min_permis <= $_SESSION['permissions']){
 			if($result == "none"){
 				echo "<div class='warning'>Unable to change password. <br>$message</div>";
 			}else if($result == "success"){
-				echo "<div class='success'>Password was changed successfuly!</div>";
+				echo "<div class='success'>Password was changed successfully!</div>";
 			}
 		}
 	}

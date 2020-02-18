@@ -71,13 +71,19 @@ This area gives you access to view all users and manage their accounts
 (permissions, reset password, delete accounts).
 
 ### Settings ###
-This is where you can manage and create your own constants for use in the framework and
-in your own custom scripts. These values will be stored under their name in `$_SESSION`
+This is where you can manage and create your own constants for use in the framework and in your
+own custom scripts. These values will be stored by the settings name as the index in `$_SESSION`.
 
 ### Update Content ###
 You can manage the content (pages, posts, footers) that will be displayed by the framework
 from this page.
 
+----
+## Documentation ##
+
+Read the [DOCS.md] for documentation.
+
 [Mozilla's lack of effort]: https://bugzilla.mozilla.org/show_bug.cgi?id=505521
 [themes]: https://github.com/NaH012/framework-themes/
 [download a free version]: https://fontawesome.com/how-to-use/on-the-web/setup/hosting-font-awesome-yourself
+[DOCS.md]: /DOCS.md

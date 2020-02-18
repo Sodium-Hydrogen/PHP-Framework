@@ -1,6 +1,10 @@
 <?php
 /*
 
+The first time this script is run it will setup the database and allow creating of a user.
+After a user exists if the $_SESSION['setup'] is still true it will respond if a user isn't logged
+in. Once a user is logged in it will allow someone to change various settings for the framework.
+
 */
 
 
@@ -64,8 +68,8 @@ if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user
             if($createAccount === true){
               if(create_account($_POST["username"],$_POST["password"], 100)){
                 echo "<div class='loginBox'>";
-                echo "User successfully writen <br>";
-                echo "Please <a style='color:red' href='/login.php'>login</a>";
+                echo "User successfully written <br>";
+                echo "Please login</a>";
                 echo "</div>";
                 session_destroy();
                 exit();

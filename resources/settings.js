@@ -160,12 +160,6 @@ function updatePageOrder(e){
 
 function showHelp(event){
   event.target.parentElement.querySelector("#help-msg").classList.toggle("show");
-  // var remove;
-  // while(remove = document.getElementById("help-msg")){
-  //   remove.parentElement.removeChild(remove);
-  // }
-  // var html = "<div class='success' id='help-msg'>" + msg + "</div>";
-  // e.insertAdjacentHTML("afterEnd", html);
 }
 
 document.onclick = function(e) {

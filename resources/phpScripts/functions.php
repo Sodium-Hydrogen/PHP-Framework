@@ -1,7 +1,7 @@
 <?php
 /*
 
-
+These are all the functions required to make the backend of the framework work correctly.
 
 */
 

@@ -72,7 +72,7 @@ This area gives you access to view all users and manage their accounts
 
 ### Settings ###
 This is where you can manage and create your own constants for use in the framework and
-in your own custom scripts.
+in your own custom scripts. These values will be stored under their name in `$_SESSION`
 
 ### Update Content ###
 You can manage the content (pages, posts, footers) that will be displayed by the framework

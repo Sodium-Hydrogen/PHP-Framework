@@ -28,6 +28,12 @@ window.addEventListener("load", function(){
     type.addEventListener("input", updateIcon);
     updateIcon();
   }
+  var elements = document.querySelectorAll("#help-msg");
+  elements.forEach(function(elem){
+    var html = "<span class='help'>?</span>";
+    elem.insertAdjacentHTML("beforeBegin", html);
+    elem.parentElement.querySelector(".help").addEventListener("click", showHelp);
+  });
 });
 
 function updateIcon(){
@@ -150,4 +156,23 @@ function updatePageOrder(e){
     html += "value='" + pages[i].innerText.replace("'", "\\'") + "'>";
   }
   e.insertAdjacentHTML("afterBegin", html);
+}
+
+function showHelp(event){
+  event.target.parentElement.querySelector("#help-msg").classList.toggle("show");
+  // var remove;
+  // while(remove = document.getElementById("help-msg")){
+  //   remove.parentElement.removeChild(remove);
+  // }
+  // var html = "<div class='success' id='help-msg'>" + msg + "</div>";
+  // e.insertAdjacentHTML("afterEnd", html);
+}
+
+document.onclick = function(e) {
+	if (!e.target.matches('.help') && !e.target.matches("#help-msg")) {
+		var hide;
+    while(hide = document.querySelector("#help-msg.show")){
+      hide.classList.remove("show");
+    }
+	}
 }

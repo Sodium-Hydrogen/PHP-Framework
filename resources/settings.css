@@ -25,6 +25,29 @@ body{
 .success{
 	background-color: green;
 }
+span.help {
+	color: #999;
+	border: 1px solid;
+	border-radius: 50%;
+	margin-left: 5px;
+	padding: 0 4px;
+	cursor: pointer;
+	font-size: smaller;
+}
+#help-msg{
+	display: none;
+	padding: 10px;
+	border-radius: 5px;
+	background-color: #dddddde0;
+	font-weight: initial;
+	margin-left: 2px;
+	position: absolute;
+	max-width: 300px;
+	color: black;
+}
+#help-msg.show{
+	display: initial;
+}
 .loginBox{
 	position: relative;
 	background-color: #444;
@@ -350,7 +373,7 @@ div .row.col{
 }
 .item-list {
 	/* padding: 5px 20px; */
-	display: unset;
+	display: initial;
 	border-radius: 10px;
 	background-color: #222;
 }
@@ -402,6 +425,9 @@ div .row.col{
 	}
 }
 @media only screen and (max-width: 650px){
+	#help-msg{
+		left: 15px;
+	}
 	hr{
 		display: none;
 	}
@@ -409,6 +435,7 @@ div .row.col{
 		display: inherit;
 	}
 	.row .cell input[type=submit],
+	.row .cell input[type=number],
 	.row .cell select{
 		margin: 5px 0;
 	}
@@ -503,5 +530,11 @@ div .row.col{
 	}
 	.page-container .row input[type="text"]{
 		width: 150px;
+	}
+	.row .headCell{
+		padding: 3px 0;
+	}
+	.row .headCell.empty{
+		padding: 0;
 	}
 }

@@ -11,8 +11,9 @@ if(check_attemps() >= $_SESSION['retry']){
 if(!empty($_SESSION['user']) && $page !== "logout"){
 	load_logged_header();
 }
-queue_header("<link rel='stylesheet' href='/resources/login.css'>");
-load_page_head("Login");
+queue_header("<link rel='stylesheet' href='/resources/settings.css'>");
+queue_header("<script src='/resources/settings.js'></script>");
+request_page_head("Login");
 
 $min_permis = 90;
 if(isset($_SESSION["headerLink"])){
@@ -67,8 +68,10 @@ if("manageusers" == $page && $min_permis <= $_SESSION['permissions']){
 	?>
 	<div class="users"><div class="row specialRow">
 		<div class="title"><div class="headCell colOne">Username</div></div>
-		<div class="information"><div class="headCell colTwo">Permisions</div>
-		<div class="headCell colThree"></div><div class="headCell colFour"></div>
+		<div class="information"><div class="headCell colTwo">Permissions<div id="help-msg">
+			Please keep this number even so the framework knows if the user is stored in the database.
+		</div></div>
+		<div class="headCell colThree empty"></div><div class="headCell colFour empty"></div>
 	</div></div>
 	<hr class="spacer">
 	<?php

@@ -8,9 +8,9 @@ require_once("resources/phpScripts/load.php");
 
 if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user'])){
   load_logged_header();
-  queue_header("<link rel='stylesheet' href='/resources/login.css'>");
-  queue_header("<script src='/resources/login.js'></script>");
-  load_page_head("Config");
+  queue_header("<link rel='stylesheet' href='/resources/settings.css'>");
+  queue_header("<script src='/resources/settings.js'></script>");
+  request_page_head("Config");
 
   $min_permis = 90;
   $permis_map = Array(
@@ -382,9 +382,12 @@ function show_new_setting_page(){
 }
 function create_settings_page($settings, $newSetting){
   echo "<div class='users left-align'>";
-  echo "<form id='setting-form' method='post' action='/config.php/settings' autocomplete='off' onsubmit='promptSubmit(event)'>";
+  echo "<form id='setting-form' method='post' action='/config.php/settings' autocomplete='off'
+  onsubmit='promptSubmit(event)'>";
   echo "<input type='hidden' name='action' value='delete-setting'><div class='row specialRow'><div class='title'>
-  <div class='headCell colThree'>Name</div><div class='headCell colThree'>Value</div></div>
+  <div class='headCell colThree'>Name<div id='help-msg'>
+  This is the index that the value will be stored in the PHP \$_SESSION variable.</div>
+  </div><div class='headCell colThree'>Value</div></div>
   <div class='information'><div class='headCell colFour'>Description</div></div></div><hr class='spacer'>";
   $oddRow = false;
   foreach($settings as $key => $value){

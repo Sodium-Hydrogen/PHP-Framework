@@ -6,7 +6,7 @@ Just add `require_once("resources/phpScripts/load.php");` and `$_SESSION['user']
 someone is logged in as well as `$_SESSION['permissions']` to check for a high enough
 privilege level.
 
-## V.1.0 ##
+## v1.0 ##
 ### What's new? ###
 * Complete revamp of content storage in favor of using a database.
 * New permissions settings on a scale 0-100 instead of hard coded `ADIMN` or `BASIC`
@@ -31,6 +31,11 @@ $sql_database = "database name";
 $sql_user_name = "database user";
 $sql_password = "database password";
 ```
+You can get these values by running the following commands. replace databaseName, username, and password.
+```
+CREATE DATABASE databaseName;
+GRANT ALL PRIVILEGES ON databaseName.* to 'username'@'localhost' identified by 'password';
+```
 To setup the first user account you will need to run `/config.php` which will ask for the
 database password to verify you as you create your account.
 
@@ -47,7 +52,7 @@ use `$_SESSION['vars']`
 
 ### resources/theme/ ###
 This directory is where you would put the theme for the site. <br>
-Some can be found [here][themes].
+One can be found [here][themes].
 
 ### Font Awesome ###
 By default this framework wants to use font awesome for footer links.

@@ -2,6 +2,7 @@
 /*
 
 These are all the functions required to make the backend of the framework work correctly.
+See DOCS.md for information
 
 */
 
@@ -110,8 +111,6 @@ function fetch_content($page, $post=null){
 		$command = "SELECT name, title, picture FROM posts WHERE parent='$page' ORDER BY position";
 		$posts = $database->query($command);
 		while($post = $posts->fetch_assoc()){
-			// $name = $post['name'];
-			// unset($post['name']);
 			array_push($res['posts'], $post);
 		}
 	}
@@ -175,7 +174,9 @@ function fetch_footer($footer, $link=null){
 	}
 	$database->close();
 
-	return $result;
+	if(isset($result['name'])){
+		return $result;
+	}
 }
 function login($username, $password){
 	$username = strtolower(trim($username));
@@ -221,7 +222,7 @@ function create_account($username, $password, $privileges){
 	$command = "SELECT username FROM accounts WHERE username = '$username'";
 
 	$check = $database->query($command);
-	$result = "none";
+	$result = false;
 	if(empty($check->fetch_assoc())){
 		$salt = (string)bin2hex(openssl_random_pseudo_bytes(8));
 		$password = hash('sha256', ($password . $salt));
@@ -229,7 +230,7 @@ function create_account($username, $password, $privileges){
 		$command = "INSERT INTO accounts (username, password, salt, privileges)
 		VALUES ('$username', '$password', '$salt', $privileges)";
 		$database->query($command);
-		$result = "success";
+		$result = true;
 	}
 	$database->close();
 
@@ -245,7 +246,7 @@ function admin_change_password($username, $newPassword){
 	$command = "SELECT username FROM accounts WHERE username = '$username'";
 
 	$check = $database->query($command);
-	$result = "none";
+	$result = false;
 
 	if(!empty($check->fetch_assoc())){
 		$salt = (string)bin2hex(openssl_random_pseudo_bytes(8));
@@ -254,7 +255,7 @@ function admin_change_password($username, $newPassword){
 		$command = "UPDATE accounts SET password='$newPassword', salt='$salt'	WHERE username='$username'";
 
 		$database->query($command);
-		$result = "success";
+		$result = true;
 	}
 
 	$database->close();
@@ -268,14 +269,14 @@ function change_password($username, $oldPassword, $newPassword){
 	$command = "SELECT password, salt FROM accounts WHERE username = '$username'";
 
 	$output = $database->query($command);
-	$result = 'none';
+	$result = true;
 	$data = $output->fetch_assoc();
 	$salt = $data['salt'];
 	$oldPassword = hash('sha256', ($oldPassword . $salt));
 	$password = $data['password'];
 	if($oldPassword == $password){
 		admin_change_password($username, $newPassword);
-		$result = "success";
+		$result = false;
 	}
 	$database->close();
 	return $result;
@@ -450,9 +451,9 @@ function setup_database(){
 				echo "<br>table creation commands successful<br>";
 			}
 		}
-		return $res;
 	}
 	$database->close();
+	return $res !== false;
 }
 
 function get_error_message($code){

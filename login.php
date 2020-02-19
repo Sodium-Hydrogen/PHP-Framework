@@ -138,15 +138,15 @@ if("manageusers" == $page && $min_permis <= $_SESSION['permissions']){
 			if($_POST['newPassword'] == $_POST['repeat'] && strlen($_POST['newPassword']) >= 8){
 				$result = change_password($username, $oldPassword, $newPassword);
 			}else if(strlen($_POST['newPassword']) < 8){
-				$result = "none";
+				$result = false;
 				$message = "Password is too short.";
 			}else{
-				$result = "none";
+				$result = false;
 				$message = "Passwords do not match.";
 			}
-			if($result == "none"){
+			if($result == false){
 				echo "<div class='warning'>Unable to change password. <br>$message</div>";
-			}else if($result == "success"){
+			}else{
 				echo "<div class='success'>Password was changed successfully!</div>";
 			}
 		}

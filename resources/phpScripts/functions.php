@@ -864,8 +864,6 @@ function save_footer($footer, $parent=null){
 	$database->close();
 	if(empty($parent)){
 		update_order($updatedOrder, "footerlinks", $name);
-	}else{
-		force_refresh();
 	}
 }
 function add_footer($footer, $parent=null){
@@ -907,7 +905,6 @@ function add_footer($footer, $parent=null){
 
 	$database->query($command);
 	$database->close();
-	force_refresh();
 	return true;
 }
 function delete_footer($name, $parent=null){
@@ -926,7 +923,6 @@ function delete_footer($name, $parent=null){
 
 	$database->query($command);
 	$database->close();
-	force_refresh();
 }
 function update_links($raw_links){
 	$links = Array();

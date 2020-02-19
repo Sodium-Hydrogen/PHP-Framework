@@ -248,15 +248,6 @@ if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user
       }
     }
     loginlink_management_page(isset($newValue) ? $newValue: null);
-  }else if(get_url() == "values" && $_SESSION['permissions'] >= $min_permis){
-    echo "<style>body{align-items:unset}</style>";
-    echo "<pre>";
-    print_r(get_configs());
-    echo "<hr>";
-    print_r($_SERVER);
-    echo "<hr>";
-    print_r($_SESSION);
-    echo "</pre>";
   }else{
     header("location: ".$_SERVER['SCRIPT_NAME']);
   }

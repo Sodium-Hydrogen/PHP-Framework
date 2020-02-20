@@ -1,7 +1,64 @@
-Documentation on all the functions provided by `/resources/phpScripts/functions.php`
+A nicer version of this can be found on the
+[official wiki](https://github.com/Sodium-Hydrogen/PHP-Framework/wiki).
+
+##### Documentation on all the functions provided by `/resources/phpScripts/functions.php` #####
+
+To use the authentication page with your own script require `load.php` so anything in the
+root directory would use:
+```
+require_once("resources/phpScripts/load.php");
+```
+And this will load the needed variables into `$_SESSION` _Use `$_SESSION["vars"]` (it is also
+an associated array) to prevent overwriting any important variables._
+
+To check if a user is logged in `$_SESSION["user"]` should be set so
+```
+if(isset($_SESSION["user"])){
+  ...
+}
+```
+will only run the code in the if statement if a user is logged in and `$_SESSION["permissions"]`
+contains an integer value of their permissions and
+```
+if($_SESSION["permissions"] > 90){
+  ...
+}
+```
+will create an admin only area requiring permissions greater than 90 to run that code.
+
+----
+
+# Themes #
+
+All files for a theme go in `/resources/theme/`. There are only two important files to
+have when creating a theme:
+
+## page/index.php ##
+This file is called whenever the framework detects that a user is trying to access a page
+as defined by those listed in the pages or posts table in the database. These can be customized
+by following the logged in header link to `Update Content`.
+
+To load the content that should be displayed [`get_url`](#get_url) is will give you the requested
+page/post and [`fetch_content`](#fetch_content) will get all information associated with the target
+page. It is also suggested to support a footer and the information can be accessed by using
+[`get_all_footers`](#get_all_footers).
+
+## page/error.php ##
+This is the default page for errors. The `$_GET['error']` variable should contain the error as a
+string that has been requested. If you don't want to code your own error messages you can use
+[`get_error_message`](#get_error_message) to get the default messages for the provided code.
+
+Also if you would like the server to send these error messages have the server use a custom error
+page of `/index.php?error=ERRORCODE`. For example this is how Apache would look
+```
+ErrorDocument 404 /index.php?error=404
+```
+
+----
 
 # Change Log #
 v0.2 - v1
+
 ## Changed ##
 * `get_url($name_of_file)` -> `get_url()`
 * `request_page_head()` -> `request_page_head($second = NULL)`
@@ -51,6 +108,8 @@ v0.2 - v1
 * `add_link`
 * `force_refresh`
 * `refresh_session`
+
+----
 
 # Functions #
 
@@ -504,3 +563,5 @@ If it cannot find either `$footer` or `$link` it will return `NULL`.
   This function evaluates if the current session needs to be refreshed. If it is a general
   refresh it will only reload all variables, otherwise if it is targeting a user it will
   make that user re-authenticate themselves with their extended session cookie.
+
+----

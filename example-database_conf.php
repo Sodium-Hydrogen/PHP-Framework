@@ -1,4 +1,9 @@
 <?php
+/*
+-------------------------------------------
+!! RENAME THIS FILE TO database_conf.php !!
+-------------------------------------------
+*/
 
 
 // This frameworks uses a mysql or mariadb database

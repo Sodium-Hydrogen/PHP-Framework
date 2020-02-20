@@ -1,6 +1,21 @@
-database_conf.php
-content
-*.swp
-resources/fontawesome
+# Ignore most files
+*.*
+
+# Protect important files
+!config.php
+!index.php
+!login.php
+!example-database_conf.php
+
+!resources/phpScripts/*
+!resources/*.css
+!resources/*.js
+
+!.gitignore
+!LICENSE
+!*.md
+
+# Cleanup any other files
 resources/theme
+resources/fontawesome
 content

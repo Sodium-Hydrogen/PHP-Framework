@@ -17,15 +17,15 @@ privilege level.
 * Implemented extended session logins to overcome the short php session timeout.
 
 
-## Important Info ##
 ----
+## Important Info ##
 
 __v1 is not compatible with previous versions__
 
 __Due to [Mozilla's lack of effort] some functionality won't work in Firefox__
 
 ### Initial Setup ###
-For database setup please edit `/database_conf.php` and set the following 3 values
+For database setup please copy `example-database_conf.php` to `database_conf.php` and set the following 3 values
 ```
 $sql_database = "database name";
 $sql_user_name = "database user";
@@ -50,9 +50,14 @@ present actions such as changing their password.
 For general storing information into `$_SESSION` to guarantee maximum compatibility
 use `$_SESSION['vars']`
 
-### resources/theme/ ###
-This directory is where you would put the theme for the site. <br>
-One can be found [here][themes].
+### Themes ###
+This framework is designed to use a theme installed in `resources/theme` that
+has two required files. `page/index.php` and `page/error.php`.
+
+One can be found __[here][themes]__ and more info can be found in [DOCS.md].
+
+### Error Document ###
+This framework provides auto error document generation
 
 ### Font Awesome ###
 By default this framework wants to use font awesome for footer links.

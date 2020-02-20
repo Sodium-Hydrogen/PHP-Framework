@@ -61,8 +61,7 @@ function load_page_head($second = NULL){
 	<head>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<meta name="theme-color" content = "#222" />
-		<!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"> -->
-		<link rel='icon' href='/resources/theme/resources/favicon.png'>
+		<link rel='icon' href='/content/favicon.png'>
 		<title><?php echo $_SESSION['site'] . $second; ?></title>
 		<?php echo isset($GLOBALS['header_info'])?$GLOBALS['header_info']:""; ?>
 	</head>

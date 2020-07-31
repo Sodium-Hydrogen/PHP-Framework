@@ -81,6 +81,6 @@ html{
 @media only screen and (max-width: 500px){
 	.loginHeader .headerMenu .username{
 		margin-left: 7%;
-		width: 170px;
+		max-width: 270px;
 	}
 }

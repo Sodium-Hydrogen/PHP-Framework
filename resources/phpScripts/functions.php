@@ -440,6 +440,7 @@ function setup_database(){
 			('alt_login_text', '', 'STRING', 'If this is set it will display a link to an alternate login script on the main login page.', true),
 			('alt_login_url', '', 'STRING', 'The url to an alternate login script.', true),
 			('force_sync', 'true', 'BOOL', 'Force all sessions to recheck every request if they need to refresh variables.', true),
+			('show_login', 'true', 'BOOL', 'Tell the theme to show a login link.', true),
 			('dark_mode', 'true', 'BOOL', 'Tells the framework and themes whether to use dark mode or not.', true)";
 		$res = $res && $database->query($command);
 

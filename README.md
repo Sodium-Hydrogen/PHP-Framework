@@ -6,6 +6,11 @@ Just add `require_once("resources/phpScripts/load.php");` and `$_SESSION['user']
 someone is logged in as well as `$_SESSION['permissions']` to check for a high enough
 privilege level.
 
+## v1.0.1 ##
+### What's new? ###
+* Added message for the Accounts page so an account from an external pluggin will see a message about their account being external instead of change username/password box
+* Added new default setting `login_link` which will tell the theme to show a link to the login page.
+
 ## v1.0 ##
 ### What's new? ###
 * Complete revamp of content storage in favor of using a database.

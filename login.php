@@ -13,7 +13,7 @@ if(!empty($_SESSION['user']) && $page !== "logout"){
 }
 queue_header("<link rel='stylesheet' href='/resources/settings.css'>");
 queue_header("<script src='/resources/settings.js'></script>");
-request_page_head("Login");
+request_page_head($page == "home" ? "Login" : ucwords($page));
 
 $min_permis = 90;
 if(isset($_SESSION["headerLink"])){
@@ -163,6 +163,13 @@ if("manageusers" == $page && $min_permis <= $_SESSION['permissions']){
 		</form>
 		<!-- <hr class="border"> -->
 		<hr>
+		<?php
+	}else{
+		?>
+			<div class="row"><h2>External Account</h2></div>
+			<p>Your account is not saved in the database and is most likely a 3rd party account.
+				If you would like to change account info you can do it from the external service.
+			</p>
 		<?php
 	}
 	$sessions = get_all_extended();

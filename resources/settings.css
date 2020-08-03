@@ -202,7 +202,7 @@ div .row.col{
 	flex-direction: column;
 }
 .row textarea{
-	resize: none;
+	resize: vertical;
 	width: -webkit-fill-available;
 	max-width: none;
 	height: 60px;

@@ -200,7 +200,7 @@ if("manageusers" == $page && $min_permis <= $_SESSION['permissions']){
 			$password = $_POST["password"];
 			$permissions = login($username, $password);
 		}
-		if($permissions == "none"){
+		if($permissions == -1){
 			save_fail();
 			echo "<div class='warning'>Incorrect user name or password</div>";
 		}else if($permissions !== ""){

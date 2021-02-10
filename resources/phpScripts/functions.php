@@ -261,7 +261,7 @@ function admin_change_password($username, $newPassword){
 
 }
 function change_password($username, $oldPassword, $newPassword){
-	$database = new mysqli("localhost", $sql_user_name, $sql_password, $sql_database);
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
 	$username = $database->real_escape_string($username);
 
@@ -281,7 +281,7 @@ function change_password($username, $oldPassword, $newPassword){
 	return $result;
 }
 function delete_account($username, $privileges){
-	$database = new mysqli("localhost", $sql_user_name, $sql_password, $sql_database);
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
 	$username = $database->real_escape_string($username);
 	$privileges = $database->real_escape_string($privileges);

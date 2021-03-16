@@ -245,7 +245,6 @@ function admin_change_password($username, $newPassword){
 	$command = "SELECT username FROM accounts WHERE username = '$username'";
 
 	$check = $database->query($command);
-	$result = false;
 
 	if(!empty($check->fetch_assoc())){
 		$salt = (string)bin2hex(openssl_random_pseudo_bytes(8));
@@ -254,7 +253,6 @@ function admin_change_password($username, $newPassword){
 		$command = "UPDATE accounts SET password='$newPassword', salt='$salt'	WHERE username='$username'";
 
 		$database->query($command);
-		$result = true;
 	}
 
 	$database->close();
@@ -268,16 +266,20 @@ function change_password($username, $oldPassword, $newPassword){
 	$command = "SELECT password, salt FROM accounts WHERE username = '$username'";
 
 	$output = $database->query($command);
-	$result = true;
+	$result = false;
+
 	$data = $output->fetch_assoc();
 	$salt = $data['salt'];
+
 	$oldPassword = hash('sha256', ($oldPassword . $salt));
 	$password = $data['password'];
+
+	$database->close();
+
 	if($oldPassword == $password){
 		admin_change_password($username, $newPassword);
-		$result = false;
+		$result = true;
 	}
-	$database->close();
 	return $result;
 }
 function delete_account($username, $privileges){
@@ -1015,7 +1017,7 @@ function refresh_session(){
 			$user = $database->real_escape_string($_SESSION['user']);
 			$command = "SELECT older_than FROM refresh WHERE target='$user'";
 			$res = $database->query($command);
-			if($res){
+			if($res && $res->fetch_array() !== NULL){
 				$olderthan = $res->fetch_array()[0];
 				if($olderthan > $_SESSION['session_start']){
 					$_SESSION = Array();

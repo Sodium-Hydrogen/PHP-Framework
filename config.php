@@ -147,7 +147,7 @@ if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user
           update_order($_POST);
           break;
         case "Save Section Order":
-          update_order($_POST);
+          update_order($_POST, "footer");
           break;
         case "Save Page":
           $_POST['name'] = $_GET['page'];
@@ -532,7 +532,7 @@ function content_management_page($newValue){
   $second_divide = false;
   if(isset($values["title"])){
     echo "<div class='row left-align'><div class='colOne'>Title:</div>";
-    echo "<input type='text' name='title' value='" . $values['title'] . "'></div>";
+    echo "<input type='text' name='title' value='" . htmlentities($values['title'], ENT_QUOTES) . "'></div>";
     $second_divide = true;
   }
   if(isset($values['direction'])){

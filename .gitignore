@@ -2,7 +2,7 @@
 *.*
 
 # Protect important files
-!config.php
+!content.php
 !index.php
 !login.php
 !example-database_conf.php

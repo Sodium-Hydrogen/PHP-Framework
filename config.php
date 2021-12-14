@@ -16,7 +16,7 @@ if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user
   queue_header("<script src='/resources/settings.js'></script>");
   request_page_head("Config");
 
-  $min_permis = 90;
+  $min_permis = 0;
   $permis_map = Array(
     "newsetting" => "settings",
     "newloginlink" => "loginlinks"
@@ -108,10 +108,11 @@ if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user
       <?php
     }
   }else if(get_url() == "newsetting" && $_SESSION['permissions'] >= $min_permis){
-    if(isset($_GET["errormsg"])){
+    if(isset($_SESSION["errormsg"])){
       echo "<div class='warning'>";
-      echo $_GET["errormsg"];
+      echo $_SESSION["errormsg"];
       echo "</div>";
+      unset($_SESSION["errormsg"]);
     }
     show_new_setting_page();
   }else if(get_url() === "settings" && $_SESSION["permissions"] >= $min_permis){
@@ -127,7 +128,8 @@ if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user
 				echo "<div class='success'>Deleted setting: " . $_POST['delete'] . "</div>";
       }else if($_POST['action'] == "Add Setting"){
         if(isset($_SESSION[$_POST["setting"]])){
-          header("location: /config.php/newsetting?errormsg=Setting already exists");
+          $_SESSION['errormsg'] = "Setting already exists";
+          header("location: /config.php/newsetting");
         }else{
           create_config($_POST['setting'], $_POST[$_POST['type']], $_POST['type'], $_POST['description']);
 					$newSetting = $_POST["setting"];
@@ -243,7 +245,8 @@ if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user
           $newValue = $_POST['name'];
           load_variables_from_database();
         }else{
-          header("location: /config.php/newloginlink?errormsg=Header link already exists");
+          $_SESSION["errormsg"] = "Header link already exists";
+          header("location: /config.php/newloginlink");
         }
       }
     }
@@ -252,7 +255,7 @@ if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user
     header("location: ".$_SERVER['SCRIPT_NAME']);
   }
 }else{
-  $_GET['error'] = '404';
+  $_SESSION['error'] = '404';
   require("index.php");
 }
 
@@ -312,8 +315,9 @@ function loginlink_management_page($newValue){
   <?php
 }
 function create_login_link(){
-  if(isset($_GET['errormsg'])){
-    echo "<div class='warning'>".$_GET['errormsg']."</div>";
+  if(isset($_SESSION['errormsg'])){
+    echo "<div class='warning'>".$_SESSION['errormsg']."</div>";
+    unset($_SESSION["errormsg"]);
   }
   ?>
   <div class="loginBox left-align"><form action="/config.php/loginlinks" method="post" autocomplete="off">
@@ -567,8 +571,28 @@ function content_management_page($newValue){
     $second_divide = true;
   }
   if(isset($values['content'])){
-    echo ($second_divide?"<hr>":"")."<div class='row col'>Content:<textarea name='content'>";
-    echo $values['content'] . "</textarea></div>";
+    ?>
+    <style>
+      #editor{
+        height: 500px;
+      }
+    </style>
+    <?php
+    echo ($second_divide?"<hr>":"")."<div class='row col'>Content:<pre id='editor'>";
+    echo htmlspecialchars($values['content']) . "</pre></div>";
+    ?>
+    <input type="hidden" name="content" id="content_holder">
+    <script src="https://pagecdn.io/lib/ace/1.4.12/ace.js" crossorigin="anonymous"  ></script>
+    <script>
+      var editor = ace.edit("editor");
+      editor.getSession().setUseWorker(false);
+      // ace.config.setModuleUrl("ace/mode/html", "https://pagecdn.io/lib/ace/1.4.12/mode-html.js")
+      // ace.config.setModuleUrl("ace/theme/twilight", "https://pagecdn.io/lib/ace/1.4.12/theme-twilight.js")
+      editor.setTheme("ace/theme/twilight");
+      editor.session.setMode("ace/mode/html");
+      editor.setKeyboardHandler("ace/keyboard/vim");
+    </script>
+    <?php
   }
 
   $list = [];

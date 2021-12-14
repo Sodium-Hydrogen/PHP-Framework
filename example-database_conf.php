@@ -14,6 +14,8 @@ $sql_user_name = "Database Username";
 // This is where the mysql password goes
 $sql_password = "Database Password";
 
+$_database_version = 1;
+
 if($_SERVER['SCRIPT_NAME'] === '/database_conf.php'){
 	$_GET['error'] = '404';
 	require("index.php");

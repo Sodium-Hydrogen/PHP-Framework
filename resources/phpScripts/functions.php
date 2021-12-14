@@ -7,19 +7,26 @@ See DOCS.md for information
 */
 
 
-function get_url(){
+function get_url(bool $resolve_home=true){
+	if(isset($_SERVER["REDIRECT_STATUS"])){
+		$_SESSION["error"] = $_SERVER["REDIRECT_STATUS"];
+	}
 	if(isset($_SERVER['PATH_INFO'])){
 		$link = $_SERVER['PATH_INFO'];
 		$link = substr($link, strpos($link, "/")+1);
-		if($link === ""){
+		if($link === "" && $resolve_home){
 			$link = "home";
 		}
-		return strtolower(str_replace("%20", " ", $link));
+		return trim(strtolower(urldecode($link)), "/");
 	}else{
-		return "home";
+		return $resolve_home?"home":"";
 	}
 }
 function request_page_head($second = null){
+	if($_SERVER["HTTP_ACCEPT"] == "application/json"){
+		header('Content-Type: application/json; charset=UTF-8');
+		return;
+	}
 	if(empty($second)){
 		$actual_link = get_url();
 		if(strpos($actual_link, '/') > 0){
@@ -27,8 +34,8 @@ function request_page_head($second = null){
 		}
 		$second = $actual_link;
 		foreach($_SESSION["pages"] as $page){
-			if(strcasecmp($actual_link, $page['name']) == 0){
-				$second = fetch_content($page['name'])['title'];
+			if(strcasecmp($actual_link, $page['title']) == 0){
+				$second = fetch_content($page['id'])['title'];
 				break;
 			}
 		}
@@ -47,30 +54,9 @@ function queue_body($string){
 	}
 	$GLOBALS['body_info'] .= $string;
 }
-function load_page_head($second = NULL){
-	if(isset($GLOBALS['page_head_loaded'])){
-		return;
-	}
-	if(!empty($second)){
-		$second = " - " . $second;
-	}
-	$GLOBALS['page_head_loaded'] = true;
-	?>
-	<!DOCTYPE html>
-	<html lang="en-us">
-	<head>
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<meta name="theme-color" content = "#222" />
-		<link rel='icon' href='/content/favicon.png'>
-		<title><?php echo $_SESSION['site'] . $second; ?></title>
-		<?php echo isset($GLOBALS['header_info'])?$GLOBALS['header_info']:""; ?>
-	</head>
-	<body>
-	<?php echo isset($GLOBALS['body_info'])?$GLOBALS['body_info']:"";
-}
 function load_logged_header(){
 	if(isset($_SESSION['user'])){
-		$user = $_SESSION['user'];
+		$user = $_SESSION['user']["username"];
 		queue_header("<script src='/resources/header.js'></script>");
 		queue_header("<link rel='stylesheet' href='/resources/userHeaderStyle.css'>");
 		queue_body("<div class='loginHeader' id='loginHeader'>
@@ -79,89 +65,110 @@ function load_logged_header(){
 		queue_body('Welcome, ' . $user . "</div><div class='links'>
 			<button class='dropBtn' onclick='header_dropdown()'>Menu</button>
 			<div class='dropdown-content' id='dropdownMenu'>
-			<a href='/'>Home</a><a class='odd-row' href='/login.php/logout'>Logout</a>
+			<a href='/'>Site</a><a href='/login.php/logout'>Logout</a>
 		");
-		if(count($_SESSION['headerLink']) > 0){
-			foreach($_SESSION['headerLink'] as $index => $link){
-				if($link["min_permission"] <= $_SESSION['permissions']){
-					queue_body("<a");
-					if($index%2 == 1){
-						queue_body(" class='odd-row'");
-					}
-					queue_body(" href=".$link['url'].">".$link['name']."</a>");
-				}
-			}
+		foreach($_SESSION['headerLink'] as $link){
+			queue_body("<a href=".$link['url'].">".$link['name']."</a>");
 		}
 		queue_body("</div></div></div></div>");
 	}
 }
-function fetch_content($page, $post=null){
+function fetch_content(int $page, int $post=null, bool $only_published=true){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	$page = $database->real_escape_string($page);
-	$res = Array();
+	$only_published = $only_published?"AND published=true":"";
+	$res = [];
 	if($post){
 		$post = $database->real_escape_string($post);
-		$command = "SELECT * FROM posts WHERE name = '$post' and parent = '$page'";
+		$command = "SELECT * FROM posts WHERE id=$post and parent=$page $only_published";
 		$res = $database->query($command)->fetch_assoc();
 	}else{
-		$command = "SELECT * FROM pages WHERE name = '$page'";
+		$command = "SELECT * FROM pages WHERE id=$page";
 		$res = $database->query($command)->fetch_assoc();
-		$res['posts'] = Array();
-		$command = "SELECT name, title, picture FROM posts WHERE parent='$page' ORDER BY position";
-		$posts = $database->query($command);
-		while($post = $posts->fetch_assoc()){
-			array_push($res['posts'], $post);
+		$res["in_html_header"] = [];
+		$res["page_content"] = [];
+		$posts = [];
+		$content = [];
+		$command = "SELECT id,title,picture,position FROM posts WHERE parent=$page $only_published ORDER BY position DESC";
+		$db_res = $database->query($command);
+		while($post = $db_res->fetch_assoc()){
+			$posts[] = $post;
 		}
+		$command = "SELECT in_html_header,content,position FROM page_content WHERE parent=$page $only_published ORDER BY position DESC";
+		$db_res = $database->query($command);
+		while($cnt = $db_res->fetch_assoc()){
+			if($cnt["in_html_header"]){
+				$res["in_html_header"][] = $cnt;
+			}else{
+				$content[] = $cnt;
+			}
+		}
+		while(sizeof($content) && sizeof($posts)){
+			if($posts[sizeof($posts)-1]["position"] < $content[sizeof($content)-1]["position"]){
+				$res["page_content"][] = array_pop($posts);
+			}else{
+				$res["page_content"][] = array_pop($content);
+			}
+		}
+		$res["page_content"] = array_merge($res["page_content"], $posts, $content);
 	}
 
 	$database->close();
-	if(isset($res['name'])){
+	if(isset($res['title'])){
 		return $res;
 	}
 }
-function get_all_footers($everything=true){
+function get_all_footers($nest_links=true){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	$command = "SELECT * FROM footer ORDER BY position";
+	$command = "SELECT * FROM footers ORDER BY position";
 	$res = $database->query($command);
 	$footer = [];
+	$links = [];
 	if($res){
 		while($row = $res->fetch_assoc()){
-			if($everything){
-				$parent = $database->real_escape_string($row['name']);
-				$command = "SELECT * FROM footerlinks WHERE parent='$parent' ORDER BY position";
-				$subres = $database->query($command);
-				$row['links'] = Array();
-				if($subres){
-					while($link = $subres->fetch_assoc()){
-						array_push($row['links'], $link);
-					}
+			$command = "SELECT * FROM footerlinks WHERE parent=$row[id] ORDER BY position";
+			$subres = $database->query($command);
+			if($nest_links){
+				$row['links'] = [];
+			}
+			while($subres && $link = $subres->fetch_assoc()){
+				if($nest_links){
+					$row["links"][] = $link;
+				}else{
+					$lid = $link["id"];
+					unset($link["id"]);
+					$links[$lid] = $link;
 				}
 			}
-			array_push($footer, $row);
+			$id = $row["id"];
+			unset($row["id"]);
+			$footer[$id] = $row;
 		}
 	}
 
 	$database->close();
-	return $footer;
+	if($nest_links){
+		return $footer;
+	}
+	return ["footer"=>$footer, "link"=>$links];
 }
-function fetch_footer($footer, $link=null){
+function fetch_footer(int $footer, int $link=null){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 	$footer = $database->real_escape_string($footer);
 	$result = [];
 	if($link){
 		$link = $database->real_escape_string($link);
-		$command = "SELECT * FROM footerlinks WHERE name='$link' AND parent='$footer'";
+		$command = "SELECT * FROM footerlinks WHERE id=$link AND parent=$footer";
 		$res = $database->query($command);
 		if($res){
 			$result = $res->fetch_assoc();
 		}
 	}else{
-		$command = "SELECT * FROM footer WHERE name='$footer'";
+		$command = "SELECT * FROM footers WHERE id=$footer";
 		$res = $database->query($command);
 		if($res){
 			$result = $res->fetch_assoc();
 			$result["links"] = Array();
-			$command = "SELECT * FROM footerlinks WHERE parent='$footer' ORDER BY position";
+			$command = "SELECT * FROM footerlinks WHERE parent=$footer ORDER BY position";
 			$res = $database->query($command);
 			if($res){
 				// $res = $res->fetch_assoc();
@@ -177,46 +184,96 @@ function fetch_footer($footer, $link=null){
 		return $result;
 	}
 }
-function login($username, $password){
+function login(string $username, string $password){
 	$username = strtolower(trim($username));
 	$password = trim($password);
 
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 	$username = $database->real_escape_string($username);
 	$command = "SELECT * FROM accounts WHERE username ='$username'";
+	$user_id = null;
+	$info = $database->query($command);
+	while($user_data = $info->fetch_assoc()){
+		$salt = $user_data['salt'];
+		$password = hash('sha256', ($salt . hash('sha256', ($password . $salt))));
 
-	$salt = $database->query($command)->fetch_assoc()['salt'];
-	$password = hash('sha256', $password . $salt);
+		$command = "SELECT * FROM accounts WHERE username = '$username' and password ='$password' and local_account = true";
+		$information = $database->query($command);
 
-	$command = "SELECT * FROM accounts WHERE username = '$username' and password ='$password'";
-	$information = $database->query($command)->fetch_assoc();
-	$permissions = -1;
-
-	if(strtolower($information['username']) == $username && $information['password'] == $password){
-		$permissions = $information['privileges'];
+		if($information && $information = $information->fetch_assoc()){
+			$user_id = $information["userid"];
+			break;
+		}
 	}
 
+	$database->close();
+	return $user_id;
+}
+function load_user_info(int $userid){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$command = "SELECT userid,username,local_account,superuser FROM accounts WHERE userid ='$userid'";
+	$info = $database->query($command)->fetch_assoc();
+
+	if(isset($_SESSION["user"])){
+		$_SESSION["user"] = array_merge($_SESSION["user"], $info);
+	}else{
+		$_SESSION["user"] = $info;
+	}
+
+	$_SESSION["user"]["groups"] = [];
+
+	$command = "SELECT groups.groupid,name FROM account_groups JOIN groups ON account_groups.groupid=groups.groupid WHERE userid=$userid";
+	$res = $database->query($command);
+	while($info = $res->fetch_assoc()){
+		$_SESSION["user"]["groups"][$info["groupid"]] = $info["name"];
+	}
+
+	$_SESSION["headerLink"] = [];
+	$command = "SELECT name, url, groupid, only_local_account, any_user FROM loginlinks ORDER BY protected, name";
+	$res = $database->query($command);
+	while($res && $link = $res->fetch_assoc()){
+		if(has_permissions($link, false)){
+			$_SESSION["headerLink"][] = $link;
+		}
+	}
 
 	$database->close();
-	return $permissions;
 }
-function view_users(){
+function view_users(int $id=null, bool $groupid=false) : array{
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	$command = "SELECT username, privileges FROM accounts order by privileges DESC, username";
+	$command = "SELECT accounts.userid, username, local_account, superuser FROM accounts ";
+	if($id!==null && !$groupid){
+		$command.="WHERE userid=$id ";
+	}else if($id!==null && $groupid){
+		$command.=" JOIN account_groups ON accounts.userid=account_groups.userid WHERE groupid=$id ";
+	}
+	$command.="ORDER BY local_account DESC, superuser DESC, username";
 
 	$output = $database->query($command);
-	$users = array();
-	while($row = $output->fetch_assoc()){
-		array_push($users, $row);
+	$users = [];
+	while($output && $row = $output->fetch_assoc()){
+		$row["groups"] = [];
+
+		$command = "SELECT name,groups.groupid FROM account_groups JOIN groups ON account_groups.groupid=groups.groupid WHERE userid=".$row["userid"];
+		$res = $database->query($command);
+		while($group = $res->fetch_assoc()){
+			$row["groups"][$group["groupid"]] = $group["name"];
+		}
+
+		$users[$row["userid"]] = $row;
 	}
 	$database->close();
+	if($id !== null && !$groupid){
+		return $users[$id];
+	}
 	return $users;
 
 }
-function create_account($username, $password, $privileges){
+function create_account(string $username, string $password, bool $superuser=false){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
 	$username = $database->real_escape_string($username);
+	$superuser = var_export(boolval($superuser), true);
 
 	$command = "SELECT username FROM accounts WHERE username = '$username'";
 
@@ -224,33 +281,34 @@ function create_account($username, $password, $privileges){
 	$result = false;
 	if(empty($check->fetch_assoc())){
 		$salt = (string)bin2hex(openssl_random_pseudo_bytes(8));
-		$password = hash('sha256', ($password . $salt));
+		$password = hash('sha256', ($salt . hash('sha256', ($password . $salt))));
 
-		$command = "INSERT INTO accounts (username, password, salt, privileges)
-		VALUES ('$username', '$password', '$salt', $privileges)";
+		$command = "INSERT INTO accounts (username, password, salt, superuser, local_account)
+		VALUES ('$username', '$password', '$salt', $superuser, true)";
 		$database->query($command);
-		$result = true;
+
+		$command = "SELECT userid FROM accounts WHERE username='$username' AND password='$password'";
+		$result = $database->query($command)->fetch_assoc()["userid"];
 	}
 	$database->close();
 
 	return $result;
 
 }
-function admin_change_password($username, $newPassword){
+function admin_change_password($userid, $newPassword){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$username = $database->real_escape_string($username);
-	$newPassword = $database->real_escape_string($newPassword);
+	$userid = intval($userid);
 
-	$command = "SELECT username FROM accounts WHERE username = '$username'";
+	$command = "SELECT userid FROM accounts WHERE userid=$userid";
 
 	$check = $database->query($command);
 
 	if(!empty($check->fetch_assoc())){
 		$salt = (string)bin2hex(openssl_random_pseudo_bytes(8));
-		$newPassword = hash('sha256', ($newPassword . $salt));
+		$newPassword = hash('sha256', ($salt . hash('sha256', ($newPassword . $salt))));
 
-		$command = "UPDATE accounts SET password='$newPassword', salt='$salt'	WHERE username='$username'";
+		$command = "UPDATE accounts SET password='$newPassword', salt='$salt' WHERE userid='$userid'";
 
 		$database->query($command);
 	}
@@ -258,12 +316,12 @@ function admin_change_password($username, $newPassword){
 	$database->close();
 
 }
-function change_password($username, $oldPassword, $newPassword){
+function change_password($userid, $oldPassword, $newPassword){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$username = $database->real_escape_string($username);
+	$userid = intval($userid);
 
-	$command = "SELECT password, salt FROM accounts WHERE username = '$username'";
+	$command = "SELECT password, salt FROM accounts WHERE userid = '$userid'";
 
 	$output = $database->query($command);
 	$result = false;
@@ -271,31 +329,130 @@ function change_password($username, $oldPassword, $newPassword){
 	$data = $output->fetch_assoc();
 	$salt = $data['salt'];
 
-	$oldPassword = hash('sha256', ($oldPassword . $salt));
+	$oldPassword = hash('sha256', ($salt . hash('sha256', ($oldPassword . $salt))));
 	$password = $data['password'];
 
 	$database->close();
 
 	if($oldPassword == $password){
-		admin_change_password($username, $newPassword);
+		admin_change_password($userid, $newPassword);
 		$result = true;
 	}
 	return $result;
 }
-function delete_account($username, $privileges){
+function delete_account($userid){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$username = $database->real_escape_string($username);
-	$privileges = $database->real_escape_string($privileges);
+	$userid = intval($userid);
 
-	$command = "DELETE FROM accounts WHERE username = '$username' and privileges = $privileges";
+	$command = "DELETE FROM account_groups WHERE userid=$userid";
 	$database->query($command);
 
-	$command = "DELETE FROM extendedsession WHERE username = '$username' and permissions = $privileges";
+	$command = "DELETE FROM accounts WHERE userid=$userid";
+	$database->query($command);
+
+	$command = "DELETE FROM extendedsession WHERE userid=$userid";
+	$database->query($command);
+
+	$database->close();
+}
+function modify_account_setting($userid, $target_value, $new_value){
+	if(!in_array($target_value, ["username", "local_account", "superuser"])){
+		return false;
+	}
+
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	if($target_value != "username"){
+		$new_value = var_export(boolval($new_value), true);
+	}else{
+		$new_value = $database->real_escape_string($new_value);
+		$command = "SELECT username FROM accounts WHERE username='$new_value'";
+		$res = $database->query($command);
+		if(!empty($res->fetch_assoc())){
+			$database->close();
+			return false;
+		}
+		$new_value = "'$new_value'";
+	}
+	$userid = intval($userid);
+	$command = "UPDATE accounts SET $target_value=$new_value WHERE userid=$userid";
+
+	$database->query($command);
+	$database->close();
+	return true;
+}
+function modify_account_groups(int $userid, $groupid, bool $add=true){
+	if(gettype($groupid) == "array"){
+		$groupid = implode($add?"),($userid,":") OR (userid=$userid AND groupid=", array_map('intval', $groupid));
+	}else{
+		$groupid = intval($groupid);
+	}
+	$command = "INSERT IGNORE INTO account_groups (userid, groupid) VALUES ($userid,";
+	if(!$add){
+		$command = "DELETE FROM account_groups WHERE (userid=$userid AND groupid=";
+	}
+	$command.=$groupid.")";
+
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$database->query($command);
+	$database->close();
+}
+function save_groups(int $gid, string $name, string $description=""){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	$name = $database->real_escape_string($name);
+	$description = $database->real_escape_string($description);
+	$success = false;
+
+	$command = "SELECT groupid FROM groups WHERE name='$name'";
+	$res = $database->query($command);
+	if(!$res || $res->num_rows == 0){
+		$command = "UPDATE groups SET name='$name', description='$description' WHERE groupid=$gid";
+		$database->query($command);
+		$success = true;
+	}
+
+	$database->close();
+	return $success;
+}
+function delete_group(int $gid){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	$users = [];
+
+	$command = "SELECT userid FROM account_groups WHERE groupid=$gid";
+	$res = $database->query($command);
+	while($res && $row = $res->fetch_assoc()){
+		$users[] = $row["userid"];
+	}
+
+	$command = "DELETE FROM account_groups WHERE groupid=$gid";
+	$database->query($command);
+	$command = "DELETE FROM groups WHERE groupid=$gid";
 	$database->query($command);
 
 	$database->close();
 
+	return $users;
+}
+function create_group(string $name, string $description=""){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	$name = $database->real_escape_string($name);
+	$description = $database->real_escape_string($description);
+	$success = false;
+	
+	$command = "SELECT groupid FROM groups WHERE name='$name'";
+	$res = $database->query($command);
+	if(!$res || $res->num_rows == 0){
+		$command = "INSERT INTO groups (name, description) VALUES ('$name', '$description')";
+		$database->query($command);
+		$success = true;
+	}
+
+	$database->close();
+	return $success;
 }
 function save_fail(){
 	$timeout = $_SESSION['ban_time'] * 3600;
@@ -304,28 +461,21 @@ function save_fail(){
 	$updated = false;
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$command = "SELECT * FROM blacklist";
+	$command = "SELECT * FROM banlist WHERE ipaddress='$ip'";
+	$tmout = $cur+$timeout;
 
 	$output = $database->query($command);
-	if(mysqli_num_rows($output)>0){
-		while($row = $output->fetch_assoc()){
-			if($cur > $row['untilFree']){
-				$tmp = $row['ipaddress'];
-				$command = "DELETE FROM blacklist WHERE ipaddress = '$tmp'";
-				$database->query($command);
-			}
-			if($ip == $row['ipaddress']){
-				$tmp = $row['attemps'] + 1;
-				$tmpT = $cur+$timeout;
-				$command = "UPDATE blacklist SET attemps = $tmp, untilFree = $tmpT WHERE ipaddress = '$ip'";
-				$database->query($command);
-				$updated = true;
-			}
+	if($output && $row = $output->fetch_assoc()){
+		$attempts = $row['attempts'] + 1;
+		$command = "UPDATE banlist SET attempts = $attempts, untilFree = $tmout WHERE ipaddress = '$ip'";
+		if($attempts >= $_SESSION["retry"]){
+			create_log("IP Ban", "Too many failed attempts from $ip. Banning until: ".gmdate('c', $tmout), $database);
 		}
+		$database->query($command);
+		$updated = true;
 	}
 	if(!$updated){
-		$tmpT = $cur+$timeout;
-		$command = "INSERT INTO blacklist (ipaddress, attemps, untilFree)	VALUES ('$ip', 1, $tmpT)";
+		$command = "INSERT INTO banlist (ipaddress, attempts, untilFree) VALUES ('$ip', 1, $tmout)";
 		$database->query($command);
 	}
 
@@ -333,25 +483,32 @@ function save_fail(){
 
 }
 
-function check_attemps(){
-	$timeout = $_SESSION['ban_time'] * 3600;
+function check_attempts(){
 	$cur = time();
 	$ip = $_SERVER['REMOTE_ADDR'];
+	$attempts = 0;
 
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$command = "SELECT * FROM blacklist WHERE ipaddress = '$ip'";
+	$command = "SELECT * FROM banlist WHERE ipaddress = '$ip' OR untilFree<='".time()."'";
 
 	$output = $database->query($command);
 
-	$output = $output->fetch_assoc();
-
-	if($output['untilFree'] > $cur){
-		return $output['attemps'];
-	}else{
-		return 0;
+	while($output && $row = $output->fetch_assoc()){
+		if($cur > $row['untilFree']){
+			$oldip = $row['ipaddress'];
+			$row["attempts"] = 0;
+			$command = "DELETE FROM banlist WHERE ipaddress = '$oldip'";
+			create_log("IP Unban", "Released $oldip from jail.");
+			$database->query($command);
+		}
+		if($ip == $row["ipaddress"]){
+			$attempts = $row["attempts"];
+		}
 	}
 	$database->close();
+
+	return $attempts;
 
 }
 function clear_fails(){
@@ -359,7 +516,7 @@ function clear_fails(){
 
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$command = "DELETE FROM blacklist WHERE ipaddress = '$ip'";
+	$command = "DELETE FROM banlist WHERE ipaddress = '$ip'";
 
 	$database->query($command);
 
@@ -368,94 +525,129 @@ function clear_fails(){
 }
 function setup_database(){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	$command = "SELECT * FROM accounts";
+	$command = "SELECT version FROM database_version;";
 	$res = $database->query($command);
 
 	// Since there should always be an account check to see if the database has been
 	// created and user entered. If it has not it creates all the tables and enters
 	// some default data
-	if($res === false){
-		$command = "CREATE TABLE refresh (target VARCHAR(64) PRIMARY KEY NOT NULL, older_than BIGINT NOT NULL)";
-		$res = $database->query($command);
+	if($res === false ){
+		$commands = [
+			"CREATE TABLE refresh (target VARCHAR(64) PRIMARY KEY NOT NULL, older_than BIGINT NOT NULL)",
 
-		$command = "CREATE TABLE accounts (userid INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-			username TEXT NOT NULL,	password VARCHAR(64) NOT NULL, salt VARCHAR(16) NOT NULL,
-			privileges INT NOT NULL)";
-		$res = $database->query($command);
+			"CREATE TABLE database_version (version FLOAT NOT NULL);",
 
-		$command = "CREATE TABLE blacklist (ipaddress VARCHAR(40) NOT NULL PRIMARY KEY,
-			attemps INT NOT NULL, untilFree BIGINT NOT NULL)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE accounts (userid INT AUTO_INCREMENT PRIMARY KEY,
+				username TEXT NOT NULL, password VARCHAR(64), salt VARCHAR(16),
+				superuser BOOLEAN DEFAULT false, local_account BOOLEAN DEFAULT false)",
 
-		$command = "CREATE TABLE footer (name VARCHAR(64) NOT NULL PRIMARY KEY, content TEXT, position INT)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE groups (groupid INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(64) NOT NULL UNIQUE,
+				description TEXT DEFAULT '', protected BOOLEAN DEFAULT false)",
 
-		$command = "CREATE TABLE footerlinks (name VARCHAR(64) NOT NULL, url TEXT, icon TEXT, type TEXT,
-			parent VARCHAR(64) NOT NULL, position INT, FOREIGN KEY (parent) REFERENCES footer(name) )";
-		$res = $res && $database->query($command);
+			"CREATE TABLE account_groups (groupid INT NOT NULL, userid INT NOT NULL,
+				FOREIGN KEY (groupid) REFERENCES groups(groupid),
+				FOREIGN KEY (userid) REFERENCES accounts(userid),
+				PRIMARY KEY (groupid, userid));",
 
-		$command = "CREATE TABLE pages (name VARCHAR(64) NOT NULL PRIMARY KEY, title TEXT, direction TEXT NOT NULL,
-			position INT, content LONGTEXT, protected BOOL)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE banlist (ipaddress VARCHAR(40) NOT NULL PRIMARY KEY,
+				attempts INT NOT NULL, untilFree BIGINT NOT NULL)",
 
-		$command = "CREATE TABLE posts (name VARCHAR(64) NOT NULL, title TEXT,
-			picture TEXT, content LONGTEXT, parent VARCHAR(64) NOT NULL, position INT,
-			FOREIGN KEY (parent) REFERENCES pages(name) )";
-		$res = $res && $database->query($command);
+			"CREATE TABLE footers (id INT PRIMARY KEY AUTO_INCREMENT, title VARCHAR(100) NOT NULL UNIQUE,
+				content TEXT DEFAULT '', position INT, published BOOLEAN DEFAULT false)",
 
-		$command = "CREATE TABLE configs (setting VARCHAR(64) NOT NULL PRIMARY KEY, value TEXT NOT NULL,
-			type ENUM('INT', 'BOOL', 'STRING'), description TEXT, protected BOOL)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE footerlinks (id INT PRIMARY KEY AUTO_INCREMENT, url TEXT DEFAULT '', icon TEXT DEFAULT 'link', type ENUM('brand','solid') DEFAULT 'solid',
+				parent INT NOT NULL, position INT, FOREIGN KEY (parent) REFERENCES footers(id), published BOOLEAN DEFAULT false )",
 
-		$command = "CREATE TABLE loginlinks ( name VARCHAR(64) NOT NULL PRIMARY KEY, url TEXT NOT NULL,
-			min_permission INT NOT NULL, protected BOOL)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE pages (id INT PRIMARY KEY AUTO_INCREMENT, title VARCHAR(100) DEFAULT 'Title' UNIQUE, direction ENUM('column', 'row') DEFAULT 'column',
+				position INT, content LONGTEXT DEFAULT '', protected BOOLEAN DEFAULT false, published BOOLEAN DEFAULT false)",
 
-		$command = "CREATE TABLE extendedsession (uid VARCHAR(64) NOT NULL PRIMARY KEY, username TEXT NOT NULL,
-			permissions INT NOT NULL, expiration BIGINT NOT NULL, ip_address VARCHAR(40) )";
-		$res = $res && $database->query($command);
+			"CREATE TABLE page_content (id INT PRIMARY KEY AUTO_INCREMENT,
+				content LONGTEXT DEFAULT '', parent INT NOT NULL, position INT,
+				published BOOLEAN DEFAULT false, in_html_header BOOLEAN DEFAULT false,
+				FOREIGN KEY (parent) REFERENCES pages(id) )",
 
-		$command = "INSERT INTO refresh (target, older_than) VALUES ('ALL', 0)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE posts (id INT PRIMARY KEY AUTO_INCREMENT, title TEXT DEFAULT '',
+				picture TEXT DEFAULT '', content LONGTEXT DEFAULT '', parent INT NOT NULL, position INT,
+				published BOOLEAN DEFAULT false, FOREIGN KEY (parent) REFERENCES pages(id) )",
 
-		$command = "INSERT INTO pages (name, title, direction, position, protected) VALUES ('Home', 'Home', 'column', 0, true)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE configs (setting VARCHAR(64) NOT NULL PRIMARY KEY, value TEXT NOT NULL,
+				type ENUM('INT', 'BOOL', 'STRING') DEFAULT 'STRING', description TEXT DEFAULT '', protected BOOLEAN DEFAULT false)",
 
-		$command = "INSERT INTO posts (name, title, content, parent, position)
-			VALUES ('helloworld', 'Hello World', '42', 'home', 0)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE loginlinks ( name VARCHAR(64) NOT NULL PRIMARY KEY, url TEXT NOT NULL, groupid INT,
+				only_local_account BOOLEAN DEFAULT false, protected BOOLEAN DEFAULT false, any_user BOOLEAN DEFAULT false,
+				FOREIGN KEY (groupid) REFERENCES groups(groupid))",
 
-		$command = "INSERT INTO loginlinks (url, name, min_permission, protected) VALUES
-			('/login.php/manageUsers', 'Manage Users', 90, true), ('/config.php/settings', 'Settings', 80, true),
-			('/config.php/pages', 'Update Content', 70, true), ('/login.php/account', 'Account', 5, true),
-			('/config.php/loginlinks', 'Header Links', 90, true)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE extendedsession (uid VARCHAR(64) NOT NULL PRIMARY KEY, userid INT NOT NULL,
+				expiration BIGINT NOT NULL, ip_address VARCHAR(40), lastaccess BIGINT,
+				FOREIGN KEY (userid) REFERENCES accounts(userid))",
 
-		$command = "INSERT INTO configs (setting, value, type, description, protected)	VALUES
-			('retry', '4', 'INT', 'Number of allowed failed login attemps.', true),
-			('site', 'TITLE', 'STRING', 'The name of this site.', true),
-			('sub_title', 'SUB TITLE', 'STRING', 'A two word title to be loaded on the pages.', true),
-			('ban_time', '48', 'INT', 'Ban time to prevent login in hours.', true),
-			('debug', 'false', 'BOOL', 'Activates php errors to be sent in html responses as well as the log files.', true),
-			('setup', 'true', 'BOOL', 'Put the site in setup mode which hides the homepage unless a user is logged in.', true),
-			('extended_timeout', '30', 'INT', 'The count in days of how long a user stays logged in.', true),
-			('alt_login_text', '', 'STRING', 'If this is set it will display a link to an alternate login script on the main login page.', true),
-			('alt_login_url', '', 'STRING', 'The url to an alternate login script.', true),
-			('force_sync', 'true', 'BOOL', 'Force all sessions to recheck every request if they need to refresh variables.', true),
-			('show_login', 'true', 'BOOL', 'Tell the theme to show a login link.', true),
-			('dark_mode', 'true', 'BOOL', 'Tells the framework and themes whether to use dark mode or not.', true)";
-		$res = $res && $database->query($command);
+			"CREATE TABLE version_control (id INT PRIMARY KEY AUTO_INCREMENT, item VARCHAR(128) NOT NULL,
+				timestamp BIGINT NOT NULL, additions TEXT DEFAULT '', deletions TEXT DEFAULT '')",
 
-		if($_SESSION['debug']){
-			if($res !== true){
-				echo "<br>table creation commands failed<br>";
-			}else{
-				echo "<br>table creation commands successful<br>";
+			"CREATE TABLE logging (id INT PRIMARY KEY AUTO_INCREMENT, uid TEXT NOT NULL,
+				timestamp BIGINT NOT NULL, info TEXT NOT NULL)",
+
+			//------------------------------//
+			//------Insert Commands---------//
+			//------------------------------//
+			"INSERT INTO database_version (version) VALUES (".$_SESSION["database_version"].");",
+
+			"INSERT INTO groups (groupid, name, description, protected) VALUES
+				(1, 'editor',    'An example group to show how to give specific users access to only updating content.', false)",
+
+			"INSERT INTO refresh (target, older_than) VALUES ('ALL', 0)",
+
+			"INSERT INTO pages (id, title, direction, position, protected) VALUES (1, 'Home', 'column', 0, true)",
+
+			"INSERT INTO page_content (parent, content, in_html_header, position) VALUES
+				(1, 'Example Content', false, 1)",
+
+			"INSERT INTO posts (title, content, parent, position, picture) VALUES
+				('Hello World', '42', 1, 0, '')",
+
+			"INSERT INTO loginlinks (url, name, groupid, any_user, protected) VALUES
+				('/login.php/manageUsers', 'Manage Users',  NULL, false, true),
+				('/content.php',           'Content',       1,    false, true),
+				('/content.php/settings',  'Settings',      NULL, false, true),
+				('/login.php/account',     'Account',       NULL, true,  true)",
+
+			"INSERT INTO configs (setting, value, type, description, protected)  VALUES
+				('retry',               '4',                           'INT',    'Number of allowed failed login attempts.', true),
+				('site',                'TITLE',                       'STRING', 'The name of this site.', true),
+				('sub_title',           'SUB TITLE',                   'STRING', 'A two word title to be loaded on the pages.', true),
+				('ban_time',            '48',                          'INT',    'Ban time to prevent login in hours.', true),
+				('debug',               'false',                       'BOOL',   'Activates php errors to be sent in html responses as well as the log files.', true),
+				('setup',               'true',                        'BOOL',   'Put the site in setup mode which hides the homepage unless a user is logged in.', true),
+				('extended_timeout',    '30',                          'INT',    'The count in days of how long a user stays logged in.', true),
+				('alt_login_text',      '',                            'STRING', 'If this is set it will display a link to an alternate login script on the main login page.', true),
+				('alt_login_url',       '',                            'STRING', 'The url to an alternate login script.', true),
+				('force_sync',          'true',                        'BOOL',   'Force all sessions to recheck every request if they need to refresh variables.', true),
+				('show_login',          'true',                        'BOOL',   'Tell the theme to show a login link.', true),
+				('dark_mode',           'true',                        'BOOL',   'Tells the framework and themes whether to use dark mode or not.', true),
+				('allowed_uploads',     'png,jpg,gif,svg,js,css,html', 'STRING', 'A comma separated list of file extension to allow as file uploads. (php could allow for remote code execution)', true),
+				('logging_enabled',     'true',                        'BOOL',   'Tells the framework whether or not to log messages internally.', true),
+				('uploads_dir',         'content',                     'STRING', 'The folder to upload files to. Becareful this could allow remote code execution.', true),
+				('header_ajax_ace',     '',                            'BIG STRING', 'The header tag used to load ajax ace cloud.<div class=\\'help-msg hidden\\'>If you would like to have extensions use this as a list of script tags with each extension after the main ace.js. Ie ext-spellcheck.js is useful.</div>', true),
+				('header_font_awesome', '',                            'BIG STRING', 'The header tag used to load font awesome.', true),
+				('version_control',     'true',                        'BOOL',   'This instructs the framework to keep a version history for page and post edits.', true)",
+
+		];
+		foreach($commands as $command){
+			$res = $database->query($command);
+			if(!$res){
+				queue_message("Table creation command failed<hr>$command<hr>".$database->error, "error");
+				$database->close();
+				return false;
 			}
 		}
+		return true;
 	}
 	$database->close();
-	return $res !== false;
+	if($res->fetch_row()[0] != $_SESSION["database_version"]){
+		queue_message("Database version does not match", "error");
+		return false;
+	}
+	return true;
 }
 
 function get_error_message($code){
@@ -509,6 +701,7 @@ function load_variables_from_database(){
 	$command = "SELECT * FROM configs";
 
 	$_SESSION['session_start'] = time();
+	$_SESSION["messages"] = [];
 
 	$res = $database->query($command);
 	if($res !== false){
@@ -522,26 +715,38 @@ function load_variables_from_database(){
 			}
 			$_SESSION[$row['setting']] = $val;
 		}
-		$command = "SELECT name FROM pages ORDER BY position, name";
+		$command = "SELECT id,title FROM pages WHERE published=true ORDER BY position, id";
 		$res = $database->query($command);
 		$_SESSION['pages'] = Array();
 		while($row = $res->fetch_assoc()){
-			$posts = Array();
-			$command = "SELECT name FROM posts WHERE parent='" . $row['name'] . "' ORDER BY position";
-			$post_res = $database->query($command);
-			while($post = $post_res->fetch_assoc()){
-				array_push($posts, $post['name']);
-			}
-			array_push($_SESSION['pages'], Array(
-				'name' => $row['name'],
-				'posts' => $posts
-			));
+			$_SESSION["pages"][] = $row;
 		}
-		$command = "SELECT name, url, min_permission, protected FROM loginlinks ORDER BY protected DESC, name";
+
+		$_SESSION['headerLink'] = [];
+		if(isset($_SESSION["user"])){
+			$command = "SELECT name, url, groupid, only_local_account, any_user FROM loginlinks ORDER BY protected, name";
+			$res = $database->query($command);
+			while($res && $link = $res->fetch_assoc()){
+				if(has_permissions($link, false)){
+					$_SESSION["headerLink"][] = $link;
+				}
+			}
+		}
+
+		$command = "SELECT id,title,content FROM footers WHERE published=true ORDER BY position";
 		$res = $database->query($command);
-		$_SESSION['headerLink'] = Array();
+		$_SESSION['footers'] = Array();
 		while($row = $res->fetch_assoc()){
-			array_push($_SESSION['headerLink'], $row);
+
+			$row["links"] = [];
+			$command = "SELECT url,icon,type FROM footerlinks WHERE parent=$row[id] AND published=true ORDER BY position";
+			$link_res = $database->query($command);
+			while($link_res && $link = $link_res->fetch_assoc()){
+				$row["links"][] = $link;
+			}
+			unset($row["id"]);
+
+			$_SESSION['footers'][] = $row;
 		}
 
 	}else{
@@ -562,10 +767,10 @@ function secure_key($length, $keyspace = '0123456789abcdefghijklmnopqrstuvwxyzAB
 function update_configs($config_dataset){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 	foreach($config_dataset as $key => $value){
-	 	$value = $database->real_escape_string($value);
-	 	$key = $database->real_escape_string($key);
-	 	$command = "UPDATE configs SET value = '$value' WHERE setting = '$key'";
-	 	$database->query($command);
+		 $value = $database->real_escape_string($value);
+		 $key = $database->real_escape_string($key);
+		 $command = "UPDATE configs SET value = '$value' WHERE setting = '$key'";
+		 $database->query($command);
 	}
 	$database->close();
 	force_refresh();
@@ -580,18 +785,19 @@ function delete_config($config_name){
 }
 function create_config($setting, $value, $type, $desc){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-  $setting = $database->real_escape_string($setting);
-  $value = $database->real_escape_string($value);
-  $type = $database->real_escape_string($type);
-  $desc = $database->real_escape_string($desc);
-  $command = "INSERT INTO configs (setting, value, type, description) VALUES ('$setting', '$value', '$type', '$desc')";
-  $database->query($command);
+	if($type == "BOOL"){ $value = $value?"true":"false"; }
+	$setting = $database->real_escape_string($setting);
+	$value = $database->real_escape_string($value);
+	$type = $database->real_escape_string($type);
+	$desc = $database->real_escape_string($desc);
+	$command = "INSERT INTO configs (setting, value, type, description) VALUES ('$setting', '$value', '$type', '$desc')";
+	$database->query($command);
 	$database->close();
 	force_refresh();
 }
 function get_configs(){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-  $command = "SELECT * FROM configs ORDER BY protected DESC, setting";
+	$command = "SELECT * FROM configs ORDER BY protected DESC, setting";
 	$res = $database->query($command);
 	$configs = array();
 	while($row = $res->fetch_assoc()){
@@ -615,358 +821,386 @@ function create_long_session(){
 		$command = "SELECT key FROM extendedsession WHERE key = $key";
 	}while ($database->query($command));
 	$expire = ($timeout * 24 * 3600) + time();
-	$username = $database->real_escape_string($_SESSION['user']);
-	$permissions = $database->real_escape_string($_SESSION['permissions']);
-	$command = "INSERT INTO extendedsession (uid, username, permissions, expiration, ip_address) VALUES
-		('$key', '$username', $permissions, $expire, '".$_SERVER['REMOTE_ADDR']."')";
+	$command = "INSERT INTO extendedsession (uid, userid, expiration, ip_address, lastaccess) VALUES
+		('$key', '".$_SESSION["user"]["userid"]."', $expire, '".$_SERVER['REMOTE_ADDR']."','".time()."')";
 
 	$database->query($command);
 
-	setcookie("extendedsession", $key, $expire, '/', $_SERVER["HTTP_HOST"], true, true);
+	// Don't set domain so there is is host only. (no subdomain)
+	setcookie("__Host-extendedsession", $key, $expire, '/', NULL, true, true);
 
 	$database->close();
 }
 function destroy_long_session(){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	$username = $database->real_escape_string($_SESSION['user']);
-	$permissions = $database->real_escape_string($_SESSION['permissions']);
-	$key = $database->real_escape_string($_COOKIE['extendedsession']);
-	$command = "DELETE FROM extendedsession WHERE username = '$username' AND permissions = $permissions AND uid = '$key'";
+	$userid = intval($_SESSION['user']["userid"]);
+	// $permissions = $database->real_escape_string($_SESSION['permissions']);
+	$key = $database->real_escape_string($_COOKIE['__Host-extendedsession']);
+	$command = "DELETE FROM extendedsession WHERE userid = '$userid' AND uid = '$key'";
 	$database->query($command);
 
-	setcookie("extendedsession", "", 0, '/', $_SERVER["HTTP_HOST"], true, true);
+	setcookie("__Host-extendedsession", "", 0, '/', $_SERVER["HTTP_HOST"], true, true);
 
 	$database->close();
 }
 function login_extended(){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 	clean_long_session_table($database);
-	if(isset($_COOKIE['extendedsession']) && !isset($_SESSION['user'])){
-		$key = $database->real_escape_string($_COOKIE['extendedsession']);
-		$command = "SELECT username, permissions FROM extendedsession WHERE uid = '$key'";
+	if(isset($_COOKIE['__Host-extendedsession']) && !isset($_SESSION['user'])){
+		$key = $database->real_escape_string($_COOKIE['__Host-extendedsession']);
+		$command = "SELECT accounts.userid,username,superuser,local_account FROM extendedsession JOIN accounts ON extendedsession.userid=accounts.userid WHERE uid = '$key'";
 		$res = $database->query($command);
-		if($res){
-			$info = $res->fetch_assoc();
-			$_SESSION['user'] = $info['username'];
-			$_SESSION['permissions'] = $info['permissions'];
-			$command = "UPDATE extendedsession SET ip_address='".$_SERVER['REMOTE_ADDR']."' WHERE uid='$key'";
+		if($res && $res->num_rows > 0){
+			// print(typeof($res));
+			$_SESSION['user'] = $res->fetch_assoc();
+			$_SESSION["user"]['groups'] = [];
+			$command = "SELECT groups.groupid,name FROM account_groups JOIN groups ON account_groups.groupid=groups.groupid WHERE userid=".$_SESSION["user"]["userid"];
+			$res = $database->query($command);
+			while($info = $res->fetch_assoc()){
+				$_SESSION["user"]["groups"][$info["groupid"]] = $info["name"];
+			}
+			$command = "UPDATE extendedsession SET ip_address='".$_SERVER['REMOTE_ADDR']."', lastaccess=".time()." WHERE uid='$key'";
 			$database->query($command);
+		}else{
+			setcookie("__Host-extendedsession", "", 0, "/", NULL, true, true);
 		}
 	}
 	$database->close();
 }
-function logout_all_extended($username, $privileges){
+function logout_all_extended($userid){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	$username = $database->real_escape_string($username);
+	$userid = intval($userid);
 
-	$command = "DELETE FROM extendedsession WHERE username = '$username' AND permissions = $privileges";
+	$command = "DELETE FROM extendedsession WHERE userid = $userid";
 
 	$database->query($command);
 
 	$database->close();
-	force_refresh($username);
+	force_refresh($userid);
 }
-function get_all_extended($username=null, $privileges=null, $key=null){
+function get_all_extended($userid=null, $key=null){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$username = ($username==null)?$_SESSION['user']:$username;
-	$privileges = ($privileges==null)?$_SESSION['permissions']:$privileges;
-	$key = ($key==null)?$_COOKIE['extendedsession']:$key;
+	$userid = intval(($userid==null)?$_SESSION['user']["userid"]:$userid);
+	$key = ($key==null)?$_COOKIE['__Host-extendedsession']:$key;
 
-	$username = $database->real_escape_string($username);
-	$privileges = intval($privileges);
 	$key = $database->real_escape_string($key);
 
-	$command = "SELECT ip_address, expiration FROM extendedsession WHERE username='$username' AND
-		permissions=$privileges AND uid!='$key' ORDER BY expiration";
+	$command = "SELECT ip_address, expiration, lastaccess FROM extendedsession WHERE userid=$userid AND uid!='$key' ORDER BY lastaccess DESC, expiration";
 
 	$ips = Array();
 	$res = $database->query($command);
 	if($res){
 		while($row = $res->fetch_assoc()){
-			array_push($ips, $row);
+			$ips[] = $row;
 		}
 	}
 	$database->close();
 	return $ips;
 }
-function update_order($new_order, $tablename="pages", $parent=null){
+function get_all_pages($nest_page_content = true){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	foreach($new_order as $index => $name){
-		$index = intval($index);
-		$name = $database->real_escape_string($name);
-		if($parent){
-			$parent = $database->real_escape_string($parent);
-			$command = "UPDATE $tablename SET position='$index' WHERE name='$name' AND parent='$parent'";
-		}else{
-			$command = "UPDATE $tablename SET position='$index' WHERE name='$name'";
+	$command = 'SELECT * FROM pages ORDER BY position';
+	$res = $database->query($command);
+	$pages = [];
+	$posts = [];
+	$page_content = [];
+	while($res && $row = $res->fetch_assoc()){
+		$id = $row["id"];
+		unset($row["id"]);
+
+		$pages[$id] = $row;
+		if($nest_page_content){
+			$pages[$id]["page_content"] = [];
+			$pages[$id]["header_content"] = [];
 		}
-		$database->query($command);
+
+		$command = "SELECT * FROM posts WHERE parent='$id' ORDER BY position DESC";
+		$resp = $database->query($command);
+		$psts = [];
+		while($resp && $post = $resp->fetch_assoc()){
+			if($nest_page_content){
+				$psts[] = $post;
+			}else{
+				$pid = $post["id"];
+				unset($post["id"]);
+				$posts[$pid] = $post;
+			}
+		}
+
+		$command = "SELECT * FROM page_content WHERE parent='$id' ORDER BY position DESC";
+		$content = $database->query($command);
+		$pg_cnt = [];
+		while($content && $cntnt = $content->fetch_assoc()){
+			if($nest_page_content){
+				if($cntnt["in_html_header"]){
+					$pages[$id]["header_content"][] = $cntnt;
+				}else{
+					$pg_cnt[] = $cntnt;
+				}
+			}else{
+				$cid = $cntnt["id"];
+				unset($cntnt["id"]);
+				$page_content[$cid] = $cntnt;
+			}
+		}
+		if($nest_page_content){
+			while(sizeof($psts) && sizeof($pg_cnt)){
+				if($psts[sizeof($psts)-1]["position"] < $pg_cnt[sizeof($pg_cnt)-1]["position"]){
+					$pages[$id]["page_content"][] = array_pop($psts);
+				}else{
+					$pages[$id]["page_content"][] = array_pop($pg_cnt);
+				}
+			}
+			$pages[$id]["header_content"] = array_reverse($pages[$id]["header_content"]);
+			$pages[$id]["page_content"] = array_merge($pages[$id]["page_content"], $psts, $pg_cnt);
+		}
 	}
+
 	$database->close();
-	force_refresh();
-}
-function save_page($pageContent){
-	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	$updatedPostOrder = Array();
-	foreach($pageContent as $index => $value){
-		if(gettype($index) == "integer"){
-			$updatedPostOrder[$index] = $value;
-			unset($pageContent[$index]);
-		}
+	if($nest_page_content){
+		return $pages;
+	}else{
+		return ["page"=>$pages, "post"=>$posts, "page_content"=>$page_content];
 	}
-	$name = $database->real_escape_string($pageContent['name']);
-	$title = $database->real_escape_string($pageContent["title"]);
-	$content = $database->real_escape_string($pageContent["content"]);
-	$direction = $database->real_escape_string($pageContent["direction"]);
-	$command = "UPDATE pages SET title='$title', content='$content', direction='$direction' WHERE name='$name'";
+}
+function update_page(int $id, $page){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	$title = $database->real_escape_string($page["title"]);
+	$content = $database->real_escape_string($page["content"]);
+	$direction = $page["direction"]=="column"?"column":"row";
+	$position = intval($page["position"]);
+	$published = strval($page["published"])=='1'?"true":"false";
+
+	$command = "UPDATE pages SET title='$title', content='$content', direction='$direction', position=$position, published=$published WHERE id=$id";
 	$database->query($command);
 	$database->close();
-	update_order($updatedPostOrder, "posts", $name);
+	force_refresh();
 }
 function add_page($newPage){
-	$found = false;
-	foreach($_SESSION['pages'] as $page){
-		if(strtolower($page['name']) == strtolower($newPage['name'])){
-			$found = true;
-			break;
-		}
-	}
-	if($found){
-		return false;
-	}
-
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$name = $database->real_escape_string($newPage['name']);
 	$title = $database->real_escape_string($newPage["title"]);
-	$content = $database->real_escape_string($newPage["content"]);
-	$direction = $database->real_escape_string($newPage["direction"]);
+	$direction = strtolower($database->real_escape_string($newPage["direction"]));
 
-	$position = count($_SESSION['pages']);
+	$command = "INSERT INTO pages (title, direction, position) SELECT
+		'$title', '$direction', MAX(position)+1 FROM pages";
 
-	$command = "INSERT INTO pages (name, title, content, direction, position) VALUES
-		('$name', '$title', '$content', '$direction', $position)";
-
-	$database->query($command);
-
-	$database->close();
-	force_refresh();
-	return true;
-}
-function delete_page($pageName){
-	$protected = fetch_content($pageName)['protected'];
-	if($protected === true){
-		return false;
+	$id = null;
+	if($database->query($command) === true){
+		$id = $database->insert_id;
 	}
-	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	$pageName = $database->real_escape_string($pageName);
-
-	$command = "DELETE FROM posts WHERE parent='$pageName'";
-	$database->query($command);
-	$command = "DELETE FROM pages WHERE name='$pageName'";
-	$database->query($command);
 
 	$database->close();
-	force_refresh();
-	return true;
+	return $id;
 }
-function add_post($post, $parent){
-  $found = false;
-  foreach($_SESSION['pages'] as $page){
-    if($page['name'] == $parent){
-      foreach($page['posts'] as $sespost){
-        if(strtolower($post['name']) == strtolower($sespost)){
-          $found = true;
-          break;
-        }
-      }
-      if($found){
-        break;
-      }
-    }
-  }
-	if($found === true){
-		return false;
+function delete_page(int $id) : bool{
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	$command = "SELECT * FROM pages WHERE id=$id";
+	$res = $database->query($command);
+	$page = ($res && $res = $res->fetch_assoc())?$res:[];
+
+	if(!$page["protected"]){
+		$command = "DELETE FROM posts WHERE parent=$id";
+		$database->query($command);
+		$command = "DELETE FROM page_content WHERE parent=$id";
+		$database->query($command);
+		$command = "DELETE FROM pages WHERE id=$id";
+		$database->query($command);
 	}
-	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$parent = $database->real_escape_string($parent);
-	$name = $database->real_escape_string($post['name']);
-	$title = $database->real_escape_string($post['title']);
-	$content = $database->real_escape_string($post['content']);
-	$picture = $database->real_escape_string($post['picture']);
-
-	$command = "SELECT COUNT(name) AS count FROM posts WHERE parent='$parent'";
-	$count = $database->query($command)->fetch_assoc()['count'];
-
-	$command = "INSERT INTO posts (name, title, content, picture, position, parent) VALUES
-		('$name', '$title', '$content', '$picture', $count, '$parent')";
-	$database->query($command);
 	$database->close();
-	force_refresh();
-	return true;
+	if($page["published"]){
+		force_refresh();
+	}
+	return !$page["protected"];
 }
-function save_post($post, $parent){
+function add_content($data=null, string $type, int $parent=null){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$parent = $database->real_escape_string($parent);
-	$name = $database->real_escape_string($post['name']);
-	$title = $database->real_escape_string($post['title']);
-	$content = $database->real_escape_string($post['content']);
-	$picture = $database->real_escape_string($post['picture']);
+	$type = $type=="posts"?"posts":"page_content";
 
-	$command = "UPDATE posts SET title='$title', content='$content', picture='$picture'
-		WHERE name='$name' and parent='$parent'";
+	$id = null;
+	if($type == "posts"){
+		$title = $database->real_escape_string($data['title']);
+		$picture = $database->real_escape_string($data['picture']);
 
-	$database->query($command);
-	$database->close();
-	force_refresh();
-}
-function delete_post($post, $parent){
-	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+		$command = "UPDATE posts SET position=IF(position IS NULL, 1, position+1) WHERE parent=$parent";
+		$database->query($command);
+		$command = "UPDATE page_content SET position=IF(position IS NULL, 1, position+1) WHERE parent=$parent AND in_html_header=false";
+		$database->query($command);
 
-	$parent = $database->real_escape_string($parent);
-	$post = $database->real_escape_string($post);
-
-	$command = "DELETE FROM posts WHERE name='$post' and parent='$parent'";
-	$database->query($command);
-	$database->close();
-	force_refresh();
-}
-function save_footer($footer, $parent=null){
-	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-
-	$name = $database->real_escape_string($footer['name']);
-	$updatedOrder = Array();
-
-	if($parent){
-		$parent = $database->real_escape_string($parent);
-		$url = $database->real_escape_string($footer['url']);
-		$type = $database->real_escape_string($footer['type']);
-		$icon = $database->real_escape_string($footer['icon']);
-
-		$command = "UPDATE footerlinks SET url='$url', type='$type', icon='$icon'
-			WHERE name='$name' and parent='$parent'";
-
+		$command = "INSERT INTO posts (title, picture, parent, position) VALUES
+			('$title', '$picture', $parent, 0 )";
+		if($database->query($command) === true){
+			$id = $database->insert_id;
+		}
 	}else{
-		$content = $database->real_escape_string($footer['content']);
+		$id = [];
+		foreach($data["parent"] as $parent){
+			$parent = intval($parent);
+			$command = "";
+			if(isset($data["clone"]) && isset($data["source"])){
+				$cpy_id = intval($data["source"]);
+				$command = "INSERT INTO page_content (parent, position, content, published, in_html_header) SELECT
+					$parent, 0, content, published, in_html_header FROM page_content WHERE id=$cpy_id";
+			}else{
+				$in_header = boolval($data["in_html_header"])?"true":"false";
 
-		foreach($footer as $index => $value){
-			if(gettype($index) == "integer"){
-				$updatedOrder[$index] = $value;
-				unset($footer[$index]);
+				if($in_header == "false"){
+					$command = "UPDATE posts SET position=IF(position IS NULL, 1, position+1) WHERE parent=$parent";
+					$database->query($command);
+				}
+				$command = "UPDATE page_content SET position=IF(position IS NULL, 1, position+1) WHERE parent=$parent AND in_html_header=$in_header";
+				$database->query($command);
+
+				$command = "INSERT INTO page_content (parent, position, in_html_header) VALUES
+					($parent, 0, $in_header )";
+			}
+			if($database->query($command) === true){
+				$id[] = $database->insert_id;
 			}
 		}
+	}
 
-		$command = "UPDATE footer SET content='$content' WHERE name='$name'";
+	$database->close();
+	return $id;
+}
+function update_content(int $id, int $parent, $content, $cnt_type){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	$command = "";
+	if($cnt_type == "posts"){
+		$title = $database->real_escape_string($content['title']);
+		$cntent = $database->real_escape_string($content['content']);
+		$picture = $database->real_escape_string($content['picture']);
+		$published = strval($content["published"])=='1'?"true":"false";
+		$position = intval($content["position"]);
+
+		$command = "UPDATE posts SET title='$title', content='$cntent', picture='$picture',
+			parent=$parent, published=$published, position=$position WHERE id=$id";
+	}else{
+		$cntent = $database->real_escape_string($content['content']);
+		$published = strval($content["published"])=='1'?"true":"false";
+		$position = intval($content["position"]);
+		$in_header = strval($content["in_html_header"])=='1'?"true":"false";
+
+		$command = "UPDATE page_content SET content='$cntent', in_html_header=$in_header,
+			parent=$parent, published=$published, position=$position WHERE id=$id";
 	}
 
 	$database->query($command);
 	$database->close();
-	if(empty($parent)){
-		update_order($updatedOrder, "footerlinks", $name);
-	}
 }
-function add_footer($footer, $parent=null){
-  $found = false;
+function delete_content(int $id, string $type){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$type = $type=="posts"?"posts":"page_content";
 
-	$search = ($parent)?fetch_footer($parent)["links"]:get_all_footers(false);
-
-  foreach($search as $item){
-    if(strtolower($item['name']) == strtolower($footer['name'])){
-      $found = true;
-    	break;
-  	}
-  }
-	if($found === true){
-		return false;
-	}
+	$command = "DELETE FROM $type WHERE id=$id";
+	$database->query($command);
+	$database->close();
+}
+function update_footer(int $id, $footer, int $parent=null){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$name = $database->real_escape_string($footer['name']);
+	$position = intval($footer["position"]);
+	$published = $footer["published"]=='1'?'true':'false';
 	if($parent){
-		$parent = $database->real_escape_string($parent);
-		$icon = $database->real_escape_string($footer['icon']);
-		$type = $database->real_escape_string($footer['type']);
 		$url = $database->real_escape_string($footer['url']);
+		$type = $database->real_escape_string($footer['type']);
+		$icon = $database->real_escape_string($footer['icon']);
 
-		$command = "SELECT COUNT(name) AS count FROM footerlinks WHERE parent='$parent'";
-		$count = $database->query($command)->fetch_assoc()['count'];
-		$command = "INSERT INTO footerlinks (name, icon, type, url, parent, position) VALUES
-			('$name', '$icon', '$type', '$url', '$parent', $count)";
+		$command = "UPDATE footerlinks SET url='$url', type='$type', icon='$icon',
+			parent=$parent, position=$position, published=$published WHERE id=$id";
+
 	}else{
+		$title = $database->real_escape_string($footer['title']);
 		$content = $database->real_escape_string($footer['content']);
 
-		$command = "SELECT COUNT(name) AS count FROM footer";
-		$count = $database->query($command)->fetch_assoc()['count'];
-
-		$command = "INSERT INTO footer (name, content, position) VALUES
-			('$name', '$content', $count)";
+		$command = "UPDATE footers SET title='$title', content='$content', published=$published WHERE id=$id";
 	}
 
 	$database->query($command);
 	$database->close();
-	return true;
+	force_refresh();
 }
-function delete_footer($name, $parent=null){
+function add_footer($footer, int $parent=null){
+
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
-	$name = $database->real_escape_string($name);
 
+	$command = "";
 	if($parent){
-		$parent = $database->real_escape_string($parent);
-		$command = "DELETE FROM footerlinks WHERE name='$name' AND parent='$parent'";
+		$url = $database->real_escape_string($footer['url']);
 
-	}else{
-		$command = "DELETE FROM footerlinks WHERE parent='$name'";
+		$command = "UPDATE footerlinks SET position=IF(position is NULL, 1, position+1) WHERE parent=$parent";
 		$database->query($command);
-		$command = "DELETE FROM footer WHERE name='$name'";
+
+		$command = "INSERT INTO footerlinks (url, parent, position) VALUES
+			('$url', $parent, 0)";
+	}else{
+		$title = $database->real_escape_string($footer['title']);
+
+		$command = "INSERT INTO footers (title, position) SELECT
+			'$title', MAX(position)+1 FROM footers";
+	}
+
+	$database->query($command);
+	$id = $database->insert_id;
+	$database->close();
+	return $id;
+}
+function delete_footer(int $id, bool $link=false){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	if($link){
+		$command = "DELETE FROM footerlinks WHERE id=$id";
+	}else{
+		$command = "DELETE FROM footerlinks WHERE parent=$id";
+		$database->query($command);
+		$command = "DELETE FROM footers WHERE id=$id";
 	}
 
 	$database->query($command);
 	$database->close();
+	force_refresh();
 }
-function update_links($raw_links){
-	$links = Array();
-	foreach($raw_links as $index => $value){
-		$split = strrpos($index, "-");
-		$link_name = urldecode(substr($index, 0, $split));
-		$link_value = substr($index, $split+1);
-		if(!isset($links)){
-			$links[$link_name] = Array();
-		}
-		$links[$link_name][$link_value] = $value;
-	}
+function update_links($links){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 	foreach($links as $link => $values){
-		$protected = false;
-		foreach($_SESSION['headerLink'] as $headerLink){
-			if($headerLink['name'] == $link && $headerLink['protected']){
-				$protected = true;
-				break;
-			}
-		}
-		$command = "UPDATE loginlinks SET";
-		foreach($values as $column => $newValue){
-			if($column == "min_permission" || !$protected){
-				$newValue = $database->real_escape_string($newValue);
-				$command .= " $column='$newValue',";
-			}
-		}
 		$link = $database->real_escape_string($link);
-		$command = substr($command, 0, strlen($command)-1)." WHERE name='$link'";
+		$url = $database->real_escape_string($values["url"]);
+		$gid = ($values["groupid"]!==NULL && $values["groupid"]!=="")?intval($values["groupid"]):"NULL";
+		$any_user = $values["any_user"]?"true":"false";
+		$only_local_account = $values["only_local_account"]?"true":"false";
+
+		$command = "UPDATE loginlinks SET url='$url', groupid=$gid, only_local_account=$only_local_account, any_user=$any_user
+			WHERE name='$link'";
+
 		$database->query($command);
 
 	}
 	$database->close();
 	force_refresh();
 }
-function delete_link($target){
-	foreach($_SESSION['headerLink'] as $headerLink){
-		if($headerLink['name'] == $target && $headerLink['protected']){
-			return false;
-		}
+function get_links(){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	$links = [];
+
+	$command = "SELECT * FROM loginlinks ORDER BY protected desc, name";
+	$res = $database->query($command);
+	while($res && $row = $res->fetch_assoc()){
+		$name = $row["name"];
+		unset($row["name"]);
+		$links[$name] = $row;
 	}
+
+	$database->close();
+	return $links;
+}
+function delete_link($target){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
 	$target = $database->real_escape_string($target);
@@ -975,26 +1209,23 @@ function delete_link($target){
 	$database->query($command);
 	$database->close();
 	force_refresh();
-	return true;
 }
-function add_link($newLink){
-	foreach($_SESSION['headerLink'] as $headerLink){
-		if($headerLink['name'] == $newLink['name']){
-			return false;
-		}
-	}
+function add_link(string $name, string $url, int $group = null, bool $any_user = false, bool $only_local_account = false){
 	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 
-	$name = $database->real_escape_string($newLink['name']);
-	$min = $database->real_escape_string($newLink['min_permission']);
-	$url = $database->real_escape_string($newLink['url']);
+	$name = $database->real_escape_string($name);
+	$url = $database->real_escape_string($url);
+	$group = ($group === null || $group === "")?"NULL":intval($group);
+	$only_local_account = $only_local_account?"true":"false";
+	$any_user = $any_user?"true":"false";
 
-	$command = "INSERT INTO loginlinks (name, url, min_permission) VALUES ('$name', '$url', '$min')";
+	$command = "INSERT INTO loginlinks (name, url, groupid, any_user, only_local_account)
+		VALUES ('$name', '$url', $group, $any_user, $only_local_account)";
+
 
 	$database->query($command);
 	$database->close();
 	force_refresh();
-	return true;
 }
 function force_refresh($target='ALL'){
 	if($_SESSION['force_sync']){
@@ -1003,7 +1234,7 @@ function force_refresh($target='ALL'){
 		$command = "INSERT INTO refresh (target, older_than) VALUES ('$target', ".time();
 		$command .= ") ON DUPLICATE KEY UPDATE older_than = VALUES(older_than)";
 		$database->query($command);
-		$timeout = time() - (10*24*60*60);
+		$timeout = time() - (10*24*60*60); // Ten days
 		$command = "DELETE FROM refresh WHERE older_than<$timeout AND target!='ALL'";
 		$database->query($command);
 		$database->close();
@@ -1014,11 +1245,10 @@ function refresh_session(){
 	if(!empty($_SESSION) && $_SESSION['force_sync']){
 		$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
 		if(isset($_SESSION['user'])){
-			$user = $database->real_escape_string($_SESSION['user']);
-			$command = "SELECT older_than FROM refresh WHERE target='$user'";
+			$command = "SELECT older_than FROM refresh WHERE target='".$_SESSION['user']["userid"]."'";
 			$res = $database->query($command);
-			if($res && $res->fetch_array() !== NULL){
-				$olderthan = $res->fetch_array()[0];
+			if($res && $res = $res->fetch_assoc()){
+				$olderthan = $res["older_than"];
 				if($olderthan > $_SESSION['session_start']){
 					$_SESSION = Array();
 					$reset = true;
@@ -1038,5 +1268,207 @@ function refresh_session(){
 		$reset = true;
 	}
 	return $reset;
+}
+function has_permissions(array $default_permissions=[], bool $current_url=true){
+	if(!isset($_SESSION["user"])){
+		return false;
+	}else if($_SESSION["user"]["superuser"]){
+		return true;
+	}
+	if(!$current_url){
+		$local_restrictions = $default_permissions["only_local_account"]?$_SESSION["user"]["local_account"]:true;
+		if($default_permissions["any_user"] && $local_restrictions){
+			return true;
+		}
+		if(isset($_SESSION["user"]["groups"][$default_permissions["groupid"]]) && $local_restrictions){
+			return true;
+		}
+	}
+	foreach($_SESSION["headerLink"] as $hlink){
+		if($current_url && $_SERVER["REQUEST_URI"] == $hlink["url"]){
+			return has_permissions($hlink, false);
+		}
+	}
+
+	return false;
+}
+function queue_message(string $message, string $type){
+	$_SESSION["messages"][] = ["type"=>$type, "message"=>$message];
+}
+function send_messages(){
+	echo "<div id='messages'>";
+	foreach($_SESSION["messages"] as $mess){
+		echo "<div class='".$mess["type"]."'><div class='clear_message'>️</div>".$mess["message"]."</div>";
+	}
+	$_SESSION["messages"] = [];
+	echo "</div>";
+}
+
+function get_dir($path){
+	$files = array();
+	foreach(scandir($path) as $file){
+		if($file === "." || $file === ".."){
+			continue;
+		}
+		if(is_dir($path . '/' . $file)){
+			$files[$file] = get_dir($path.'/'.$file);
+		}else{
+			$files[$file] = mime_content_type($path.'/'.$file);
+		}
+	}
+	return $files;
+}
+function get_all_groups(){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$command = "SELECT groupid, name, description, protected FROM groups ORDER BY name";
+	$res = $database->query($command);
+	$groups = [];
+	while($group = $res->fetch_assoc()){
+		$groups[$group["groupid"]] = ["name"=>$group["name"], "protected"=>boolval($group["protected"]), "description"=>$group["description"]];
+	}
+	$database->close();
+	return $groups;
+}
+function get_log_count(string $search = NULL, string $log_type = NULL){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$where = "";
+	if($search){
+		$search = $database->real_escape_string($search);
+		$where = "WHERE info RLIKE '$search'";
+	}
+	if($log_type){
+		$log_type = $database->real_escape_string($log_type);
+		$where .= ($where==""?"WHERE":"AND")." uid='$log_type'";
+	}
+	$command = "SELECT COUNT(1) AS log_count FROM logging $where";
+	$res = $database->query($command);
+	$count = 0;
+	if($res && $res = $res->fetch_assoc()){
+		$count = $res["log_count"];
+	}
+	$database->close();
+	return $count;
+}
+function get_logs(int $max_logs = NULL, string $log_type = NULL, string $search = NULL, int $start_offset = 0){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$where = "";
+	if($search){
+		$search = $database->real_escape_string($search);
+		$where = "WHERE info RLIKE '$search'";
+	}
+	if($log_type){
+		$log_type = $database->real_escape_string($log_type);
+		$where .= ($where==""?"WHERE":"AND")." uid='$log_type'";
+	}
+	$command = "SELECT * FROM logging $where ORDER BY timestamp DESC, id DESC";
+	if($max_logs !== null){
+		$command.=" LIMIT $max_logs OFFSET $start_offset";
+	}
+	$logs = [];
+	$res = $database->query($command);
+	while($res && $log = $res->fetch_assoc()){
+		$logs[] = $log;
+	}
+	$database->close();
+	return $logs;
+}
+function get_log_types(string $search = Null){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$where = "";
+	if($search){
+		$search = $database->real_escape_string($search);
+		$where = "WHERE info RLIKE '$search'";
+	}
+	$command = "SELECT DISTINCT uid FROM logging $where ORDER BY uid";
+	$types = [];
+	$res = $database->query($command);
+	while($res && $row = $res->fetch_assoc()){
+		$types[] = $row["uid"];
+	}
+	$database->close();
+	return $types;
+}
+function create_log(string $uid, string $message, mysqli $database = NULL){
+	$close_database = ($database === NULL);
+	if($_SESSION["logging_enabled"]){
+		if($close_database){
+			$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+		}
+		$uid = $database->real_escape_string($uid);
+		$message = $database->real_escape_string($message);
+		$time = time();
+		$command = "INSERT INTO logging (uid, timestamp, info) VALUES ('$uid', $time, '$message')";
+		$database->query($command);
+		if($close_database){
+			$database->close();
+		}
+	}
+}
+function save_referer(){
+	if(isset($_SERVER["HTTP_REFERER"])){
+		$referer = parse_url($_SERVER["HTTP_REFERER"]);
+		if($referer["host"] != $_SERVER["HTTP_HOST"]){
+			create_log("External Referer", "IP: ".$_SERVER["REMOTE_ADDR"].", From: '".$_SERVER["HTTP_REFERER"]."'");
+		}
+	}
+}
+function export_database(array $table_list = []){
+	$db_data = [];
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+
+	if(sizeof($table_list) == 0){
+		$command = "show tables";
+		$res = $database->query($command);
+		while($res && $tbl = $res->fetch_array()){
+			$table_list[] = $tbl[0];
+		}
+	}
+	foreach($table_list as $table_name){
+		$table_name = $database->real_escape_string($table_name);
+
+		$command = "SHOW CREATE TABLE `$table_name`";
+		$res = $database->query($command);
+
+		if($res && $res = $res->fetch_assoc()){
+			$db_data[$table_name]["meta_data"] = $res["Create Table"];
+		}
+		$db_data[$table_name]["data"] = [];
+
+		$command = "SELECT * FROM `$table_name`";
+		$res = $database->query($command);
+		while($res && $row = $res->fetch_assoc()){
+			$db_data[$table_name]["data"][] = $row;
+		}
+	}
+
+
+	$database->close();
+	return json_encode($db_data);
+	return $db_data;
+}
+
+function load_page_head($second = NULL){
+	if(isset($GLOBALS['page_head_loaded'])){
+		return;
+	}
+	if(!empty($second)){
+		$second = " - " . $second;
+	}
+	$GLOBALS['page_head_loaded'] = true;
+	?>
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content='text/html; charset=utf-8'>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="theme-color" content = "#222" />
+		<link rel='icon' href='/content/favicon.png'>
+		<title><?php echo $_SESSION['site'] . $second; ?></title>
+		<?php echo isset($GLOBALS['header_info'])?$GLOBALS['header_info']:""; ?>
+		<?php echo isset($_SESSION['header_ajax_ace'])?$_SESSION['header_ajax_ace']:""; ?>
+		<?php echo isset($_SESSION['header_font_awesome'])?$_SESSION['header_font_awesome']:""; ?>
+	</head>
+	<body>
+	<?php echo isset($GLOBALS['body_info'])?$GLOBALS['body_info']:"";
 }
 ?>

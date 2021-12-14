@@ -1,7 +1,9 @@
 <?php
 include(dirname(__FILE__)."/functions.php");
-session_start();
 
+session_set_cookie_params(0, '/', null, true, true);
+session_name("__Host-SID");
+session_start();
 
 
 if(refresh_session()){
@@ -10,16 +12,19 @@ if(refresh_session()){
 	$_SESSION['db'] = $sql_database;
 	$_SESSION['dbUser'] = $sql_user_name;
 	$_SESSION['dbPass'] = $sql_password;
+	$_SESSION["database_version"] = $_database_version;
 	$_SESSION['vars'] = Array();
+
+	login_extended();
 
 	load_variables_from_database();
 
-	login_extended();
+	save_referer();
 }
 
 
 
-if ($_SESSION['debug'] == true) {
+if (isset($_SESSION['debug']) && $_SESSION['debug'] == true) {
 	//setting error reporting
 	error_reporting(E_ALL);
 	ini_set('display_errors', 1);

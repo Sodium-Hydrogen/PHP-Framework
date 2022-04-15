@@ -126,12 +126,14 @@ span.help {
 	border: 1px solid;
 	border-radius: 50%;
 	margin-left: 5px;
-	padding: 0 4px;
+	padding: 0 5px;
 	cursor: pointer;
-	font-size: smaller;
+	font-size: small;
 	pointer-events: visible;
 }
 .help-msg{
+	font-size: initial;
+	z-index: 1000;
 	padding: 10px;
 	border-radius: 5px;
 	background-color: var(--help-background-color);

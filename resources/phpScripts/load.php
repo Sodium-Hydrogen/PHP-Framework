@@ -13,7 +13,7 @@ if(refresh_session()){
 	$_SESSION['dbUser'] = $sql_user_name;
 	$_SESSION['dbPass'] = $sql_password;
 	$_SESSION["database_version"] = $_database_version;
-	$_SESSION['vars'] = Array();
+	$_SESSION['vars'] = [];
 
 	login_extended();
 

@@ -581,8 +581,8 @@ function setup_database(){
 				expiration BIGINT NOT NULL, ip_address VARCHAR(40), lastaccess BIGINT,
 				FOREIGN KEY (userid) REFERENCES accounts(userid))",
 
-			"CREATE TABLE version_control (id INT PRIMARY KEY AUTO_INCREMENT, item VARCHAR(128) NOT NULL,
-				timestamp BIGINT NOT NULL, additions TEXT DEFAULT '', deletions TEXT DEFAULT '')",
+			"CREATE TABLE version_control (id INT PRIMARY KEY AUTO_INCREMENT, target_key VARCHAR(128) NOT NULL,
+				timestamp BIGINT NOT NULL, notes VARCHAR(100) DEFAULT '', rcs_data TEXT DEFAULT '')",
 
 			"CREATE TABLE logging (id INT PRIMARY KEY AUTO_INCREMENT, uid TEXT NOT NULL,
 				timestamp BIGINT NOT NULL, info TEXT NOT NULL)",
@@ -590,7 +590,7 @@ function setup_database(){
 			//------------------------------//
 			//------Insert Commands---------//
 			//------------------------------//
-			"INSERT INTO database_version (version) VALUES (".$_SESSION["database_version"].");",
+			"INSERT INTO database_version (version) VALUES ($_SESSION[database_version]);",
 
 			"INSERT INTO groups (groupid, name, description, protected) VALUES
 				(1, 'editor',    'An example group to show how to give specific users access to only updating content.', false)",
@@ -629,7 +629,7 @@ function setup_database(){
 				('uploads_dir',         'content',                     'STRING', 'The folder to upload files to. Becareful this could allow remote code execution.', true),
 				('header_ajax_ace',     '',                            'BIG STRING', 'The header tag used to load ajax ace cloud.<div class=\\'help-msg hidden\\'>If you would like to have extensions use this as a list of script tags with each extension after the main ace.js. Ie ext-spellcheck.js is useful.</div>', true),
 				('header_font_awesome', '',                            'BIG STRING', 'The header tag used to load font awesome.', true),
-				('version_control',     'true',                        'BOOL',   'This instructs the framework to keep a version history for page and post edits.', true)",
+				('version_control',     'true',                        'BOOL',   'Allow editors to take snapshots of content using RCS like version control.', true)",
 
 		];
 		foreach($commands as $command){
@@ -1446,6 +1446,163 @@ function export_database(array $table_list = []){
 	return json_encode($db_data);
 	return $db_data;
 }
+// A recursive function to take the diff matrix and
+// digest it into a list of additions and deletions
+// to be processed into a final RCS like diff.
+function create_diff($c, $a, $b, $i, $j){
+	$res = [];
+	if($i>0 && $j>0 && $a[$i-1] == $b[$j-1]){
+		$res = array_merge($res, create_diff($c, $a, $b, $i-1, $j-1));
+	}else if($j > 0 && ($i == 0 || $c[$i][$j-1] >= $c[$i-1][$j])){
+		$res = array_merge($res, create_diff($c, $a, $b, $i, $j-1));
+		$last = end($res);
+		if($last && $last[0] == 'a' && $last[1] == $i){
+			$res[sizeof($res)-1][2]++;
+			$res[sizeof($res)-1][3].="\n".$b[$j-1];
+		}else
+			array_push($res, ['a', $i, 1, $b[$j-1]]);
+	}else if($i > 0 && ($j == 0 || $c[$i][$j-1] < $c[$i-1][$j])){
+		$res = array_merge($res, create_diff($c, $a, $b, $i-1, $j));
+		$last = end($res);
+		if($last && $last[0] == 'd' && $last[1]+$last[2] == $i)
+			$res[sizeof($res)-1][2]++;
+		else
+			array_push($res, ['d', $i, 1]);
+	}
+	return $res;
+}
+
+// This creates a largest common string matrix, creates a diff from it, 
+// then returns a RCS style diff string.
+function compute_diff($a, $b){
+	$a = preg_split("/\n/", $a);
+	$b = preg_split("/\n/", $b);
+	// Create LCS matrix
+	$c = [];
+	for($i = 0; $i <= sizeof($a); $i++){
+		$c[$i] = array(0);
+		for($j = 0; $j <= sizeof($b); $j++){
+			if($i == 0 || $j == 0)
+				$c[$i][$j] = 0;
+			else if($a[$i-1] == $b[$j-1])
+				$c[$i][$j] = $c[$i-1][$j-1]+1;
+			else
+				$c[$i][$j] = max($c[$i][$j-1], $c[$i-1][$j]);
+		}
+	}
+
+	$c = create_diff($c, $a, $b, sizeof($a), sizeof($b));
+
+	$rcs_diff = "";
+	foreach($c as $val){
+		$rcs_diff.="$val[0]$val[1] $val[2]".($val[0]=='a'?"\n$val[3]":"")."\n";
+	}
+	$rcs_diff = substr($rcs_diff, 0, -1);
+	return $rcs_diff;
+}
+
+function parse_diff($diff){
+	$parsed = [];
+	$lines = preg_split("/\n/", $diff);
+	$add_cnt = 0;
+	foreach($lines as $line){
+		if($add_cnt == 0 && $line){
+			preg_match("/^([ad])(\d+) (\d+)$/", $line, $gps);
+			array_push($parsed, [$gps[1], $gps[2], $gps[3]]);
+			if($gps[1] == 'a'){
+				$add_cnt = $gps[3];
+				array_push($parsed[sizeof($parsed)-1], []);
+			}
+		}else if($add_cnt){
+			$add_cnt--;
+			array_push($parsed[sizeof($parsed)-1][3], $line);
+		}
+	}
+	return $parsed;
+}
+
+function apply_diff($text, $diff){
+	if(strpos($diff, "@text") === 0){
+		return preg_split("/\n/", $diff, 2)[1];
+	}
+	$diff = array_reverse(parse_diff($diff));
+	$lines = preg_split("/\n/", $text);
+
+	foreach($diff as $dif){
+		if($dif[0] == 'a')
+			array_splice($lines, $dif[1], 0, $dif[3]);
+		else
+			array_splice($lines, $dif[1]-1, $dif[2], []);
+	}
+	return implode("\n", $lines);
+}
+
+function save_snapshot(string $text, string $key, string $note){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$key = $database->real_escape_string($key);
+	$command = "SELECT * FROM version_control WHERE target_key='$key' ORDER BY timestamp DESC";
+	$res = $database->query($command);
+	if($res && $row = $res->fetch_assoc()){
+		if(strpos($row['rcs_data'], "@text") === 0){
+			$data = preg_split("/\n/", $row["rcs_data"], 2)[1];
+			if(strcmp($data, $text) !== 0){
+				$data = $database->real_escape_string(compute_diff($text, $data));
+				$command = "UPDATE version_control SET rcs_data='$data' WHERE id=$row[id]";
+				$database->query($command);
+			}else{
+				$database->close();
+				return;
+			}
+		}
+	}
+
+	$text = $database->real_escape_string("@text\n$text");
+	$note = $database->real_escape_string($note);
+	$time = time();
+
+	$command = "INSERT INTO version_control (target_key, timestamp, notes, rcs_data) VALUES ('$key',$time,'$note','$text')";
+	$database->query($command);
+	$id = $database->insert_id;
+
+
+	$database->close();
+	return $id;
+}
+
+function list_snapshots($key){
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$key = $database->real_escape_string($key);
+	$command = "SELECT id,timestamp,notes FROM version_control WHERE target_key='$key' ORDER BY timestamp DESC";
+	$res = $database->query($command);
+	$rows = [];
+	while($row = $res->fetch_assoc()){
+		array_push($rows, $row);
+	}
+	$database->close();
+	return $rows;
+}
+
+function fetch_snapshot($id){
+	$text = "";
+
+	$database = new mysqli("localhost", $_SESSION['dbUser'], $_SESSION['dbPass'], $_SESSION['db']);
+	$res = $database->query("SELECT target_key,timestamp FROM version_control WHERE id=$id");
+	if($res && $res = $res->fetch_assoc()){
+		$key = $database->real_escape_string($res["target_key"]);
+		$timestamp = $res["timestamp"];
+		$res = $database->query(
+			"SELECT rcs_data FROM version_control WHERE target_key='$key' AND timestamp >= $timestamp ORDER BY timestamp DESC"
+		);
+		while($row = $res->fetch_assoc()){
+			$text = apply_diff($text, $row["rcs_data"]);
+		}
+	}
+
+	$database->close();
+	return $text;
+}
+
+
 
 function load_page_head($second = NULL){
 	if(isset($GLOBALS['page_head_loaded'])){
@@ -1471,4 +1628,5 @@ function load_page_head($second = NULL){
 	<body>
 	<?php echo isset($GLOBALS['body_info'])?$GLOBALS['body_info']:"";
 }
+
 ?>

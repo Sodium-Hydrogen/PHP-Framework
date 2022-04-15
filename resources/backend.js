@@ -62,6 +62,9 @@ function setup_document(){
 	elem = document.getElementById("tab_pages"); if(elem){elem.onsubmit = pages_submit;pages_submit(elem);}
 	elem = document.getElementById("tab_footers"); if(elem){elem.onsubmit = footers_submit;footers_submit(elem);}
 	elem = document.getElementById("tab_files"); if(elem){elem.onsubmit = files_submit;files_submit(elem);}
+
+	elem = document.getElementById("add_new_folder"); if(elem){elem.onclick = (e)=>{add_new_file(true);}}
+	elem = document.getElementById("add_new_file"); if(elem){elem.onclick = (e)=>{add_new_file();}}
 	
 	elem = document.getElementById("new_page_content_clone"); if(elem)elem.onchange = (e)=>{
 		e.target.parentElement.nextElementSibling.classList.toggle("hidden");
@@ -590,15 +593,32 @@ function footers_submit(e){
 		});
 	});
 }
-function get_file_path(elem){
+function get_file_path(elem, only_dirs=false, return_new=false){
 	var target = elem.parentElement.children[1];
-	var input = target.querySelector("input[type=hidden][name*='file_name[']")
 	var path = [];
+	var input = target.querySelector("input[type=hidden][name^='file_name[']");
+	var new_loc = target.querySelector("input[type=hidden][name^='file_move[][']");
+	var rename = target.querySelector("input[name^='file_rename[']");
+	var new_file = target.querySelector("input[name^='new_file[f'");
 	if(input){
-		path.push(...(input.name.match(/file_name\[(.*)]\[]/)[1].split("/")));
-		path.push(input.value);
+		if(return_new && new_loc){
+			path.push(...(new_loc.value.split("/")));
+		}else{
+			path.push(...(input.name.match(/file_name\[(.*)\]\[\]/)[1].split("/")));
+		}
+		if(return_new && rename){
+			path.push(rename.value);
+		}else{
+			path.push(input.value);
+		}
+	}else if(new_file){
+		path.push(...(new_file.name.match(/new_file\[.*?\]\[(.*)\]\[\]/)[1].split("/")));
+		path.push(new_file.value);
 	}else{
 		path.push(target.lastChild.data.trim());
+	}
+	if(only_dirs && !target.parentElement.classList.contains("folder")){
+		path.pop();
 	}
 	return path;
 }
@@ -622,11 +642,42 @@ function create_file_disp(file, root_dir, expanded = false){
 	}
 	return container;
 }
+function add_new_file(is_folder=false){
+	var selected = document.querySelector(".file-tree .folder.selected");
+	var type = is_folder?"folder":"file";
+	var cnt = selected.children[2].querySelectorAll(`:scope > .new-file.${type}`).length;
+	selected.children[2].insertAdjacentHTML("afterbegin",
+		`<div class='new-file dirty li ${type}' ${is_folder?"":"mime-type='application/x-empty'"}>
+			<i class='fas' draggable='true'></i>
+			<div class='file-name' draggable='true'>
+				<input type='hidden' name="new_file[${type}][${get_file_path(selected.firstElementChild).join("/")}][]"
+					value="New F${type.slice(1)}${cnt?" ("+cnt+")":""}">New F${type.slice(1)}${cnt?" ("+cnt+")":""}</div>
+			${is_folder?"<div class='ul'></div>":""}
+		</div>`
+	);
+	selected.children[2].firstElementChild.querySelectorAll('*[draggable=true]').forEach((e)=>{e.ondragstart = file_drag_start});
+}
+function file_drag_start(e){
+	e.target.parentElement.classList.add("dragging");
+	e.dataTransfer.setDragImage(e.target.parentElement.firstElementChild, 0, 0);
+	var is_new = Boolean(e.target.parentElement.children[1].querySelector("input[name^=new_file]"));
+	e.dataTransfer.setData("text/json", JSON.stringify({
+		"mime-type":e.target.parentElement.getAttribute("mime-type"),
+		"name":e.target.parentElement.children[1].innerText,
+		"path":get_file_path(e.target),
+		"is-new": is_new,
+	}));
+}
 function files_submit(e){
 	js_post(e, function(json_data){
 		var target = (e.nodeType && e.nodeType == Node.ELEMENT_NODE)?e:e.target;
+		var editor_file_name = document.getElementById("file-name");
 
 		var allowed_file_types = json_data["allowed_type"];
+		var allowed_files = document.getElementById("allowed_files");
+		if(allowed_files){
+			allowed_files.innerText = allowed_file_types.join(", ");
+		}
 
 		var file_tree = target.querySelector(".file-tree");
 		while(file_tree && file_tree.firstChild){file_tree.removeChild(file_tree.firstChild);};
@@ -638,39 +689,52 @@ function files_submit(e){
 			file_editor = ace.edit("file-editor");
 			file_editor.session.setUseWorker(false);
 			file_editor.setTheme("ace/theme/tomorrow_night");
+			open_editors["__default__"] = file_editor.getSession();
 		}
 
 		if(file_tree && json_data["files"] && json_data["root_dir"]){
 			
 			file_tree.innerHTML = `<div class='li folder expanded root selected'><i class='fas'></i>
 				<div class='file-name'>${value_escape(json_data["root_dir"], true)}</div></div>`;
-			file_tree.appendChild(create_file_disp(json_data["files"], json_data['root_dir'],false));
+			file_tree.firstElementChild.appendChild(create_file_disp(json_data["files"], json_data['root_dir'],false));
 
 		}
-		file_tree.querySelectorAll("*[draggable=true]").forEach((elem)=>{
-			elem.ondragstart = (e)=>{
-				e.target.parentElement.classList.add("dragging");
-				e.dataTransfer.setDragImage(e.target.parentElement.firstElementChild, 0, 0);
-				e.dataTransfer.setData("text/json", JSON.stringify({
-					"mime-type":e.target.parentElement.getAttribute("mime-type"),
-					"name":e.target.parentElement.children[1].innerText,
-					"path":get_file_path(e.target)
-				}));
-			}
-		})
-		file_upload.ondragover = file_tree.ondragover = (e)=>{
+		file_tree.querySelectorAll("*[draggable=true]").forEach((elem)=>{ elem.ondragstart = file_drag_start; });
+		file_upload.labels[0].ondragover = file_tree.ondragover = (e)=>{
 			// if(e.target && !e.target.classList.contains("ul") &&
 			// 	e.target.parentElement && e.target.parentElement.classList.contains("folder")
 			// ){
 			// console.log(e.dataTransfer);
-			console.log(e.dataTransfer.files.length);
 				e.preventDefault();
 			// }
 		}
 		file_upload.onchange = (e)=>{
-			console.log(e.target.dataTransfer.files);
+			if(e.target.files && e.target.files[0].type){
+				var ext = e.target.files[0].name.match(/.+\.(\w+)$/);
+				if(ext && allowed_file_types.includes(ext[1].toLowerCase())){
+					file_upload.labels[0].querySelector("span").innerText = truncate(file_upload.files[0].name, 15);
+					var nfp = file_upload.parentElement.querySelector("input[type=hidden][name=new_file_path]");
+					if(!nfp){
+						nfp = document.createElement("input");
+						nfp.type = "hidden";
+						nfp.name = "new_file_path";
+						file_upload.insertAdjacentElement("afterend", nfp);
+					}
+					nfp.value = get_file_path(file_tree.querySelector(".selected").firstChild).join("/");
+				}else{
+					e.target.value = null;
+					e.preventDefault();
+					file_upload.labels[0].querySelector("span").innerText = "Upload";
+					if(ext){
+						create_message(`Disallowed file type <code>${ext[1]}</code>`, "warning");
+					}else{
+						create_message("Unable to upload file", "warning");
+						console.log(e.target.files[0]);
+					}
+				}
+			}
 		}
-		file_upload.ondrop = file_tree.ondrop = (e)=>{
+		file_upload.labels[0].ondrop = file_tree.ondrop = (e)=>{
 			var data = e.dataTransfer.getData("text/json");
 			if(data && e.target && !e.target.classList.contains("ul") &&
 				e.target.parentElement && e.target.parentElement.classList.contains("folder")
@@ -680,14 +744,54 @@ function files_submit(e){
 				if( data["path"].toString() != tgt.toString() &&
 					data["path"].slice(0,data["path"].length-1).toString() != tgt.toString()
 				){
-					e.target.parentElement.children[1].innerHTML =
-						`<input type=hidden name="file_move[][${data.path.join("/")}]" value="${tgt.join("/")}">` +
-						e.target.parentElement.children[1].innerHTML;
-					console.log(e.target.parentElement.children[1]);
+					elem = null;
+					var ext = data["name"].toLowerCase().match(/\.(\w+)$/);
+					if(ext && !allowed_file_types.includes(ext[1])){
+						create_message(`Permission Denied. Unable to move file with extension <code>${ext[1]}</code>`, "warning");
+						return;
+					}
+					var pth = data["path"].slice(0,data["path"].length-1);
+					var in_name = data["is-new"]?`new_file[${data["mime-type"]?"file":"folder"}]`:"file_name";
+					if(data["mime-type"]){
+						elem = file_tree.querySelector(
+							`div[mime-type="${data["mime-type"]}"] input[name="${in_name}[${pth.join("/")}][]"][value="${data["name"]}"]`
+						);
+					}else{
+						elem = file_tree.querySelector(
+							`div.folder > .file-name input[name="${in_name}[${pth.join('/')}][]"][value="${data["name"]}"]`
+						);
+					}
+					elem = elem.parentElement.parentElement;
+					if(elem.contains(e.target)){
+						return;
+					}
+					elem.parentElement.removeChild(elem);
+					elem.classList.add("dirty");
+					var move_input = elem.querySelector("input[name*='file_move[][']");
+					if(move_input){
+						move_input.value = tgt.join("/");
+					}else{
+						elem.children[1].insertAdjacentHTML("afterbegin",
+							`<input type=hidden name="file_move[][${data.path.join("/")}]" value="${tgt.join("/")}">`
+						);
+					}
+					e.target.parentElement.children[2].insertAdjacentElement("afterbegin", elem);
 				}
 			}else if(!data && e.dataTransfer.files.length && e.dataTransfer.files[0].type){
 				var ext = e.dataTransfer.files[0].name.match(/.+\.(\w+)$/);
 				if(ext && allowed_file_types.includes(ext[1].toLowerCase())){
+					var nfp = file_upload.parentElement.querySelector("input[type=hidden][name=new_file_path]");
+					if(!nfp){
+						nfp = document.createElement("input");
+						nfp.type = "hidden";
+						nfp.name = "new_file_path";
+						file_upload.insertAdjacentElement("afterend", nfp);
+					}
+					if(file_tree.contains(e.target)){
+						nfp.value = get_file_path(e.target, true).join("/");
+					}else{
+						nfp.value = get_file_path(file_tree.querySelector(".selected").firstChild).join("/");
+					}
 					file_upload.files = e.dataTransfer.files;
 					file_upload.labels[0].querySelector("span").innerText = truncate(file_upload.files[0].name, 15);
 				}else if(ext){
@@ -705,27 +809,31 @@ function files_submit(e){
 				return;
 			}
 			var tp = e.target.parentElement;
-			if(tp.classList.contains("folder")){
-				if(e.target.tagName == "I"){
+			if( tp.classList.contains("folder")){
+				if(!tp.classList.contains("root") && e.target.tagName == "I"){
 					tp.classList.toggle("expanded");
 				}else{
 					file_tree.querySelectorAll(".folder.selected").forEach((elem)=>{elem.classList.remove("selected");});
 					tp.classList.add("selected");
 					tp.classList.add("expanded");
 				}
-			}else if(tp.classList.contains("file") && tp.getAttribute("mime-type").match(/text\//)){
+			}else if(tp.classList.contains("file") && tp.getAttribute("mime-type").match(/text\/|\/svg\+xml|\/x-empty/)){
 				var path = '/' + get_file_path(tp.children[1]).join("/");
-				var ext = path.split('.');
-				if(allowed_file_types.indexOf(ext[ext.length-1]) == -1){
+				var ext = path.toLowerCase().match(/\.(\w+)$/);
+				var new_file = Boolean(tp.children[1].querySelector("input[name^='new_file[f']"));
+				if(ext && !allowed_file_types.includes(ext[1])){
 					create_message(`Unable to edit file '${path}' Its file type is not allowed.<br>
-						You can add <code>${ext[ext.length-1]}</code> to the setting 
+						You can add <code>${ext[1]}</code> to the setting 
 						<a href=/content.php/settings#allowed_uploads target=_blank><code>allowed_uploads</code></a>`,
 						"warning");
 					return;
+				}else if(!ext){
+					create_message(`File at path <code>${path}</code> has no extension. Please rename it before editing.`, "warning")
+					return;
 				}
-				var name = document.getElementById("file-name");
-				name.innerText = path;
-				if(!tp.classList.contains["dirty"]){
+				var cur_path = get_file_path(tp.children[1], false, true).join("/");
+				editor_file_name.innerText = cur_path;
+				if(!tp.classList.contains["dirty"] && !new_file){
 					var xhr = new XMLHttpRequest();
 					xhr.open("GET", path);
 					xhr.onreadystatechange= function(){
@@ -738,7 +846,7 @@ function files_submit(e){
 								}
 								file_editor.setSession(open_editors[path]);
 								ace.config.loadModule("ace/ext/modelist", (m)=>{
-									file_editor.session.setMode(m.getModeForPath(path).mode);
+									file_editor.session.setMode(m.getModeForPath(cur_path).mode);
 								});
 							}else{
 								create_message(`Unable to load file ${path}`, "error");
@@ -746,44 +854,159 @@ function files_submit(e){
 						}
 					}
 					xhr.send();
+				}else if(new_file && !open_editors[path]){
+					open_editors[path] = ace.createEditSession("");
+					open_editors[path].setUseWorker(false);
+					open_editors[path].on('change', ()=>{tp.classList.add("dirty")});
+					file_editor.setSession(open_editors[path]);
+					ace.config.loadModule("ace/ext/modelist", (m)=>{
+						file_editor.session.setMode(m.getModeForPath(cur_path).mode);
+					});
 				}else{
 					file_editor.setSession(open_editors[path]);
 					ace.config.loadModule("ace/ext/modelist", (m)=>{
-						file_editor.session.setMode(m.getModeForPath(path).mode);
+						file_editor.session.setMode(m.getModeForPath(cur_path).mode);
 					});
 				}
 			}
 		}
-		file_tree.oncontextmenu = (e)=>{
-			if(e.target.parentElement.classList.contains("li")){
-				var orig_name = e.target.parentElement.children[1].querySelector("input[type=hidden][name*='file_name[']")
-				if(!orig_name || (
-					!e.target.parentElement.classList.contains("folder") && !(orig_name.value.includes(".") &&
-					allowed_file_types.includes(orig_name.value.match(/\.(\w+)$/)[1].toLowerCase()))
+		file_tree.oncontextmenu = (e, sub_target=undefined)=>{
+			if(e.target.classList.contains("file-name") && e.target.parentElement.classList.contains("li")){
+				var orig_name = e.target.parentElement.children[1].querySelector("input[type=hidden][name^='file_name[']");
+				var new_file = e.target.parentElement.children[1].querySelector("input[type=hidden][name^='new_file[f']");
+				if(new_file){ orig_name = new_file; }
+				if(!orig_name  || (
+					!e.target.parentElement.classList.contains("folder") && orig_name.value.includes(".") &&
+					!allowed_file_types.includes(orig_name.value.match(/\.(\w+)$/)[1].toLowerCase())
 				)){
 					return;
 				}
 				e.preventDefault();
-				var new_name = e.target.parentElement.children[1].querySelector("input[name*='file_rename[']")
+				var new_name = e.target.parentElement.children[1].querySelector("input[name^='file_rename[']")
+				if(new_file){
+					new_name = new_file;
+				}
 				if(!new_name){
 					new_name = document.createElement("input");
 					new_name.type = 'text';
 					new_name.name = orig_name.name.replace(/file_name\[/, "file_rename[");
+					new_name.name = new_name.name.replace(/\[\]$/, `[${orig_name.value}]`);
 					new_name.value = orig_name.value;
 					orig_name.insertAdjacentElement("afterend", new_name);
-					new_name.onblur = (b)=>{
-						b.target.parentElement.lastChild.data = b.target.value;
-						if(b.target.value == orig_name.value){
-							b.target.parentElement.removeChild(b.target);
-						}else{
-							b.target.type='hidden'
-						}
-					};
 				}
+				if(new_file){
+					new_name.setAttribute("original_value", new_name.value);
+					new_name.onchange = (c)=>{
+						var path = get_file_path(e.target);
+						path = "/"+(path.slice(0, path.length-1).join("/"));
+						var old_path = path+'/'+c.target.getAttribute("original_value");
+						var path = path+'/'+c.target.value;
+						if(open_editors[old_path]){
+							open_editors[path] = open_editors[old_path];
+							delete open_editors[old_path];
+							if(file_editor.getSession() == open_editors[path]){
+								editor_file_name.innerText = path;
+							}
+						}
+						c.target.setAttribute("original_value", c.target.value);
+					}
+				}
+				new_name.onkeydown = (k)=>{ if(k.keyCode == 13){ k.target.blur(); } }
+				new_name.onblur = (b)=>{
+					var prnt = b.target.parentElement.parentElement;
+					if(!e.target.parentElement.classList.contains("folder") ){
+						var ext = b.target.value.match(/\.(\w+)$/)
+						if(!ext){
+							create_message(`Please use an extension for all files`, "warning");
+							if(!new_file && orig_name.value.match(/\.\w+$/)){
+								b.target.parentElement.lastChild.data = orig_name.value;
+								b.target.parentElement.removeChild(b.target);
+							}else{
+								b.target.parentElement.lastChild.data = b.target.value;
+								b.target.type = "hidden";
+								prnt.classList.add("dirty");
+							}
+							return;
+						}
+						ext = ext[1].toLowerCase();
+						if(!allowed_file_types.includes(ext)){
+							create_message(`Rename to file type <code>${ext}</code> not allowed.`, "warning")
+							if(!new_file){
+								b.target.parentElement.lastChild.data = orig_name.value;
+								b.target.parentElement.removeChild(b.target);
+							}
+							return;
+						}
+					}
+					b.target.parentElement.lastChild.data = b.target.value;
+					if(!new_file && b.target.value == orig_name.value){
+						b.target.parentElement.removeChild(b.target);
+						if(!open_editors[get_file_path(prnt.children[1]).join("/")] && !prnt.querySelector("input[name^='file_move[][']")){
+							prnt.classList.remove("dirty");
+						}
+					}else{
+						prnt.classList.add("dirty");
+						b.target.type='hidden'
+					}
+				};
 				new_name.type='text';
 				new_name.focus();
 				new_name.parentElement.lastChild.data = "";
 
+			}else if(e.target.tagName == 'I' && e.target.parentElement.classList.contains("dirty")){
+				var is_new = sub_target?false:e.target.parentElement.children[1].querySelector("input[name^='new_file[f'");
+				if(sub_target || confirm(`Would you like to discard all changes for:\n${
+						get_file_path(e.target, false, true).join("/")
+					}${
+						is_new?"\nThis will delete the object and all data assisiated with it.":""
+					}`)
+				){
+					var elem = sub_target?sub_target:e.target.parentElement.children[1];
+					var root_path = get_file_path(elem).join("/");
+					var editor = open_editors['/' + root_path];
+					if(!sub_target && editor){
+						if(file_editor.getSession() == editor){
+							editor_file_name.innerHTML = "";
+							file_editor.setSession(open_editors["__default__"]);
+						}
+						editor.setValue("");
+						editor.destroy();
+						delete open_editors['/' + root_path];
+					}
+					if(is_new){
+						if(e.target.parentElement.classList.contains("selected")){
+							file_tree.firstElementChild.classList.add("selected");
+						}
+						e.target.parentElement.querySelectorAll(".li:not(.new-file)").forEach((oe)=>{
+							// var path = "/"+get_file_path(oe.children[1]).join("/");
+							file_tree.oncontextmenu(e, oe.children[1]);
+						});
+						e.target.parentElement.parentElement.removeChild(e.target.parentElement);
+					}else if(elem.querySelector("input[name^='file_move']")){
+						var path = get_file_path(elem);
+						var root = path.slice(0, path.length-2).join("/");
+						var parent_dir = path[path.length-2];
+						elem.parentElement.parentElement.removeChild(elem.parentElement);
+						var old_parent = file_tree.querySelector(`.folder > .file-name input[name="file_name[${root}][]"][value="${parent_dir}"]`)
+						if(!old_parent){
+							old_parent = file_tree.firstElementChild;
+						}else{
+							old_parent = old_parent.parentElement.parentElement;
+						}
+						old_parent.children[2].insertAdjacentElement("afterbegin", elem.parentElement);
+						elem.removeChild(elem.querySelector("input[name^='file_move']"));
+					}
+					if(!is_new && !sub_target && elem.querySelector("input[name^='file_rename']")){
+						elem.lastChild.data = elem.querySelector("input[name^=file_name]").value.trim();
+					}
+					if(!sub_target){
+						elem.querySelectorAll("input:not([name^='file_name['])").forEach((i)=>{elem.removeChild(i)});
+						e.preventDefault();
+					}
+					if(!elem.querySelector("input:not([name^='file_name['])") && !open_editors['/'+root_path]){
+						elem.parentElement.classList.remove("dirty");
+					}
+				}
 			}
 		}
 

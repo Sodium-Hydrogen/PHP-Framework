@@ -276,6 +276,10 @@ if(($_SESSION['setup'] === true && get_url() == "home") || isset($_SESSION['user
       }	
 		}
 
+	}else if(get_url() === "snapshots" && has_permissions()){
+		// if($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST)){
+		// if(isset($_POST[""]))
+
 	}else if(get_url() === "settings" && has_permissions()){
 		$configs = get_configs();
 		$links = get_links();
@@ -562,17 +566,22 @@ function draw_content(){?>
 				<div class='file-actions'>
 					<div class='section'>
 						<label for="file_upload"><i class="fas fa-upload"></i><span>Upload</span></label><input type='file' id='file_upload' name='file_upload'>
+					</div><div class='column'>
+						<h3>Allowed File Types<div class="help-msg hidden">
+								This is a list of file extensions that are allowed to be modified from this web editor.
+								This list can be modified by changing the setting:
+								<a href="/content.php/settings#allowed_uploads" target="_blank"><code>allowed_uploads</code></a>.
+							</div>:</h3>
+						<p id='allowed_files'></p>
 					</div><div class='section'>
 							<button type="button" id="add_new_folder" class='positive'><i class='fas fa-folder-plus'></i></button>
-							<button type="button" id="remove_selected_folder" class='negative'><i class='fas fa-folder-minus'></i></button>
-					</div><div class='section'>
-							<button type="button" id="add_new_file" class='positive'><i class='fas fa-file-plus'></i></button>
-							<button type="button" id="remove_selected_file" class='negative'><i class='fas fa-file-minus'></i></button>
+							<button type="button" id="add_new_file" class='positive'><i class='fas fa-plus-square'></i></button>
+							<button type="button" id="remove_item" class='negative'><i class='fas fa-trash-alt'></i></button>
 					</div>
 					<div class='file-tree'></div>
 				</div>
 				<div class='editor-container'>
-					<div class='row'><input type='submit' value='Save' name='files_save'><div id='file-name'></div></div>
+					<div class='row'><input class='positive' type='submit' value='Save' name='files_save'><div id='file-name'></div></div>
 					<div id='file-editor'></div>
 				</div>
 			</form>

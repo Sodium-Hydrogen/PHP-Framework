@@ -274,7 +274,9 @@ textarea.big-string{
 	width: 0.1px;
 	position: absolute;
 }
-
+.file-tree{
+	overflow: auto;
+}
 .file-tree,
 .file-tree .ul{
 	display: grid;
@@ -307,6 +309,9 @@ textarea.big-string{
 .file-tree .file > i:before{
 	content: "\f15b"; /* plain file */
 }
+.file-tree .file[mime-type*="video/"] > i::before{
+	content: "\f03d"; /* video */
+}
 .file-tree .file[mime-type*="image/"] > i:before{
 	content: "\f03e"; /* image */
 }
@@ -322,6 +327,21 @@ textarea.big-string{
 .file-tree .folder.root > i:before{
 	content: "\f07c"; /* open folder */
 }
+.file-tree .dirty > .file-name {
+	font-style: italic;
+}
+.file-name{
+	white-space: nowrap;
+}
+.file-tree .new-file > i{
+	color: var(--warning);
+}
+
+.file-tree .dirty > .file-name::before {
+	content: "*";
+	padding-right: .5ex;
+}
+
 
 @media only screen and (max-width: 575px){
 	#tab_settings .table-wrapper{
